@@ -1,0 +1,39 @@
+node_modules
+
+# Environment variables
+.env
+.env.*
+
+# Next.js build output
+.next/
+
+# Python virtual environment
+agent/.venv/
+
+# ChromaDB vectorstore (auto-generated)
+agent/chroma_db/
+chroma_db/
+
+# Chart PNGs (auto-generated)
+backend/charts/*.png
+
+# SQLite database (contains seed data, regenerate with prisma)
+dev.db
+dev.db-journal
+dev.db-wal
+
+# Prisma generated client
+/generated/prisma
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.pyc

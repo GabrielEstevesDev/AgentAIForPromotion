@@ -1,0 +1,98 @@
+
+> agent-ia---test-v2@1.0.0 dev
+> next dev
+
+   ▲ Next.js 15.5.12
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.0.231:3000
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 4s
+ ○ Compiling /chat ...
+ ✓ Compiled /chat in 7.6s (1366 modules)
+ GET /chat 200 in 15753ms
+ ✓ Compiled in 3s (1380 modules)
+ GET /chat 200 in 1466ms
+ ○ Compiling /api/conversations ...
+ ✓ Compiled /api/conversations in 1734ms (1387 modules)
+ GET /chat 200 in 1151ms
+ GET /chat 200 in 272ms
+ ⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ GET /api/conversations 200 in 145ms
+ POST /api/conversations 200 in 120ms
+ ○ Compiling /api/chat ...
+ ✓ Compiled /api/chat in 3s (1445 modules)
+ POST /api/chat 200 in 5964ms
+ ○ Compiling /chat/[id] ...
+ ✓ Compiled /chat/[id] in 2.4s (1448 modules)
+ GET /chat/343ecdb8-2d26-45f8-a7cf-30693746307a 200 in 4537ms
+ GET /chat/343ecdb8-2d26-45f8-a7cf-30693746307a 200 in 197ms
+ GET /api/conversations 200 in 113ms
+ GET /chat 200 in 1423ms
+ GET /api/conversations 200 in 96ms
+ POST /api/conversations 200 in 113ms
+ ✓ Compiled in 1593ms (601 modules)
+ GET /chat 200 in 650ms
+ ✓ Compiled in 1094ms (601 modules)
+ GET /chat 200 in 171ms
+ POST /api/chat 200 in 14961ms
+ GET /chat/5e3a618b-4fda-40a5-8c40-d232ef03030d 200 in 286ms
+ GET /chat/5e3a618b-4fda-40a5-8c40-d232ef03030d 200 in 220ms
+ GET /api/conversations 200 in 82ms
+ POST /api/chat 200 in 11810ms
+ ✓ Compiled in 1027ms (601 modules)
+ ✓ Compiled in 586ms (601 modules)
+ ✓ Compiled in 828ms (601 modules)
+ ✓ Compiled in 597ms (601 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 2.5s (1383 modules)
+ GET / 307 in 3653ms
+ GET /chat 200 in 899ms
+ ○ Compiling /api/conversations ...
+ ✓ Compiled /api/conversations in 2.1s (1414 modules)
+ GET /api/conversations 200 in 2774ms
+ GET /chat 200 in 766ms
+ ✓ Compiled in 685ms (601 modules)
+ GET /chat 200 in 159ms
+ POST /api/conversations 200 in 161ms
+ ○ Compiling /api/chat ...
+ ✓ Compiled /api/chat in 1228ms (871 modules)
+ POST /api/chat 200 in 4029ms
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 508ms
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 183ms
+ GET /api/conversations 200 in 215ms
+ ✓ Compiled in 803ms (601 modules)
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 204ms
+ ✓ Compiled in 672ms (601 modules)
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 244ms
+ ✓ Compiled in 708ms (601 modules)
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 192ms
+ ✓ Compiled in 744ms (601 modules)
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 768ms
+ ✓ Compiled in 1010ms (601 modules)
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 283ms
+ ✓ Compiled in 537ms (601 modules)
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 132ms
+ POST /api/chat 200 in 9940ms
+ POST /api/chat 200 in 6116ms
+ POST /api/chat 200 in 16752ms
+ ✓ Compiled in 1845ms (601 modules)
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 224ms
+ ✓ Compiled in 955ms (601 modules)
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 219ms
+ ✓ Compiled in 771ms (601 modules)
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 212ms
+ ✓ Compiled in 699ms (601 modules)
+ GET /chat/ee59c2de-7372-4241-a69a-b008b51eefaa 200 in 235ms
+ ✓ Compiled in 877ms (601 modules)
+ ✓ Compiled in 3.8s (1389 modules)
+ ✓ Compiled in 1647ms (1389 modules)
+ ✓ Compiled in 897ms (603 modules)
+ ✓ Compiled in 1832ms (1389 modules)
+ ✓ Compiled in 1953ms (1389 modules)
+ ✓ Compiled in 1807ms (1393 modules)
+ ○ Compiling /api/conversations ...
+ ✓ Compiled /api/conversations in 1105ms (807 modules)
+ GET /api/conversations 200 in 1685ms

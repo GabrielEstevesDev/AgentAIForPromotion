@@ -1,0 +1,135 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String   @unique
+  phone     String?
+  createdAt DateTime @default(now())
+
+  orders  Order[]
+  reviews Review[]
+}
+
+model Product {
+  id          String @id @default(uuid())
+  name        String
+  description String
+  price       Float
+  category    String
+  sku         String @unique
+
+  orderItems         OrderItem[]
+  reviews            Review[]
+  inventory          Inventory?
+  purchaseOrderItems PurchaseOrderItem[]
+}
+
+model Order {
+  id          String   @id @default(uuid())
+  customerId  String
+  orderDate   DateTime @default(now())
+  status      String   @default("Pending")
+  totalAmount Float
+
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  orderItems OrderItem[]
+}
+
+model OrderItem {
+  id        String @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  unitPrice Float
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Inventory {
+  id          String   @id @default(uuid())
+  productId   String   @unique
+  stockLevel  Int
+  lastRestock DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  productId  String
+  customerId String
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now())
+
+  product  Product  @relation(fields: [productId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+}
+
+model ApiUsage {
+  id           String @id @default(uuid())
+  date         String
+  requestCount Int
+  totalTokens  Int
+}
+
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+
+  purchaseOrders PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id          String   @id @default(uuid())
+  supplierId  String
+  createdAt   DateTime @default(now())
+  status      String   @default("Draft")
+  totalAmount Float    @default(0)
+
+  supplier Supplier            @relation(fields: [supplierId], references: [id])
+  items    PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id              String  @id @default(uuid())
+  purchaseOrderId String
+  productId       String?
+  sku             String
+  name            String?
+  quantity        Int
+  unitCost        Float
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  product       Product?      @relation(fields: [productId], references: [id])
+}
+
+model Conversation {
+  id        String    @id @default(uuid())
+  title     String    @default("New conversation")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  role           String
+  content        String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}

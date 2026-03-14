@@ -1,0 +1,76 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+:root {
+  --background: #f4efe8;
+  --foreground: #1e1a17;
+  --card: rgba(255, 252, 247, 0.84);
+  --card-strong: rgba(255, 248, 240, 0.96);
+  --muted: #6b6258;
+  --border: rgba(77, 56, 31, 0.12);
+  --accent: #b85c38;
+  --accent-strong: #8a3b1a;
+  --sidebar: rgba(255, 250, 244, 0.9);
+  --sidebar-border: rgba(77, 56, 31, 0.14);
+}
+
+.dark {
+  --background: #171311;
+  --foreground: #f8f1e8;
+  --card: rgba(32, 26, 23, 0.84);
+  --card-strong: rgba(39, 31, 28, 0.96);
+  --muted: #b8a99a;
+  --border: rgba(248, 241, 232, 0.1);
+  --accent: #f08a5d;
+  --accent-strong: #ffb48f;
+  --sidebar: rgba(24, 19, 17, 0.92);
+  --sidebar-border: rgba(248, 241, 232, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(240, 138, 93, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
+    var(--background);
+  color: var(--foreground);
+}
+
+body::selection {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground) 18%, transparent);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+

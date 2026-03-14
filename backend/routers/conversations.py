@@ -1,0 +1,157 @@
+import sqlite3
+import uuid
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from ..db import get_connection
+
+router = APIRouter(prefix="/api/conversations", tags=["conversations"])
+
+
+class ConversationCreate(BaseModel):
+    title: str = "New conversation"
+
+
+class ConversationUpdate(BaseModel):
+    title: str
+
+
+def _handle_missing_table(exc: sqlite3.OperationalError) -> None:
+    if "no such table" in str(exc).lower():
+        raise HTTPException(
+            status_code=500,
+            detail="Conversation tables are missing. Run the Prisma migration for chat history first.",
+        ) from exc
+    raise exc
+
+
+@router.get("")
+def list_conversations() -> list[dict]:
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, title, createdAt, updatedAt
+                FROM Conversation
+                ORDER BY updatedAt DESC
+                """
+            ).fetchall()
+            return rows
+    except sqlite3.OperationalError as exc:
+        _handle_missing_table(exc)
+
+
+@router.post("")
+def create_conversation(payload: ConversationCreate) -> dict:
+    try:
+        with get_connection() as conn:
+            conversation_id = str(uuid.uuid4())
+            conn.execute(
+                """
+                INSERT INTO Conversation (id, title, createdAt, updatedAt)
+                VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (conversation_id, payload.title),
+            )
+            row = conn.execute(
+                """
+                SELECT id, title, createdAt, updatedAt
+                FROM Conversation
+                WHERE id = ?
+                """,
+                (conversation_id,),
+            ).fetchone()
+            conn.commit()
+            return row
+    except sqlite3.OperationalError as exc:
+        _handle_missing_table(exc)
+
+
+@router.get("/{conversation_id}")
+def get_conversation(conversation_id: str) -> dict:
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, title, createdAt, updatedAt
+                FROM Conversation
+                WHERE id = ?
+                """,
+                (conversation_id,),
+            ).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Conversation not found.")
+            return row
+    except sqlite3.OperationalError as exc:
+        _handle_missing_table(exc)
+
+
+@router.get("/{conversation_id}/messages")
+def get_conversation_messages(conversation_id: str) -> list[dict]:
+    try:
+        with get_connection() as conn:
+            conversation = conn.execute(
+                "SELECT id FROM Conversation WHERE id = ?",
+                (conversation_id,),
+            ).fetchone()
+            if not conversation:
+                raise HTTPException(status_code=404, detail="Conversation not found.")
+
+            rows = conn.execute(
+                """
+                SELECT id, conversationId, role, content, createdAt
+                FROM Message
+                WHERE conversationId = ?
+                ORDER BY datetime(createdAt) ASC, rowid ASC
+                """,
+                (conversation_id,),
+            ).fetchall()
+            return rows
+    except sqlite3.OperationalError as exc:
+        _handle_missing_table(exc)
+
+
+@router.patch("/{conversation_id}")
+def rename_conversation(conversation_id: str, payload: ConversationUpdate) -> dict:
+    try:
+        with get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE Conversation
+                SET title = ?, updatedAt = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (payload.title, conversation_id),
+            )
+            if cursor.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Conversation not found.")
+
+            row = conn.execute(
+                """
+                SELECT id, title, createdAt, updatedAt
+                FROM Conversation
+                WHERE id = ?
+                """,
+                (conversation_id,),
+            ).fetchone()
+            conn.commit()
+            return row
+    except sqlite3.OperationalError as exc:
+        _handle_missing_table(exc)
+
+
+@router.delete("/{conversation_id}")
+def delete_conversation(conversation_id: str) -> dict:
+    try:
+        with get_connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM Conversation WHERE id = ?",
+                (conversation_id,),
+            )
+            if cursor.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Conversation not found.")
+            conn.commit()
+            return {"ok": True}
+    except sqlite3.OperationalError as exc:
+        _handle_missing_table(exc)
