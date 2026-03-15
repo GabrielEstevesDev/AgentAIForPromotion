@@ -11,7 +11,10 @@ web_search = TavilySearch(
     name="web_search",
     description=(
         "Search the web for current or external information not available in the "
-        "database or internal knowledge base."
+        "database or internal knowledge base. "
+        "RESPONSE RULES: Summarize findings in 2-3 bullets (no raw snippets). "
+        "Cite sources as [Title](URL). Add a 'Relevance to Our Business' line "
+        "connecting findings to our catalog/strategy. End with Key Takeaway."
     ),
 )
 

@@ -3,7 +3,7 @@ import { createDataStreamResponse } from "ai";
 import { getBackendUrl } from "@/lib/backend";
 
 // Allow long-running agent responses (complex multi-tool queries)
-export const maxDuration = 180;
+export const maxDuration = 120;
 
 type IncomingBody = {
   messages?: Array<{
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   try {
     // 3-minute timeout to match the backend agent timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 180_000);
+    const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
     backendResponse = await fetch(`${getBackendUrl()}/api/chat`, {
       method: "POST",

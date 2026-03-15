@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "deep-agents-orchestration": {
+      "source": "langchain-ai/langchain-skills",
+      "sourceType": "github",
+      "computedHash": "fb3a558ec0c485ae813e23140cd2ff7df7b8e00b6538eea760816fa78546180e"
+    },
+    "langgraph-fundamentals": {
+      "source": "langchain-ai/langchain-skills",
+      "sourceType": "github",
+      "computedHash": "43a226ecc442ba6d6091eea39cf587a7583fa532e73db58259e35b1393c31418"
+    },
+    "langgraph-human-in-the-loop": {
+      "source": "langchain-ai/langchain-skills",
+      "sourceType": "github",
+      "computedHash": "084b2c75d68a0000e665005372b010651c444247dc7e5ed340c4bc022b85e680"
+    }
+  }
+}

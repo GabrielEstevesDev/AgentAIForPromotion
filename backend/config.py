@@ -16,7 +16,7 @@ CHARTS_DIR.mkdir(exist_ok=True)
 BACKEND_BASE_URL = "http://127.0.0.1:8001"
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-LLM_MODEL = "gpt-4o-mini"
+LLM_MODEL = "gpt-5-mini-2025-08-07"
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
@@ -27,6 +27,9 @@ RAG_CHUNK_OVERLAP = 100
 RAG_TOP_K = 5
 
 EXECUTOR_TIMEOUT_SEC = 30
+
+# Set to True to fall back to the legacy create_react_agent implementation
+USE_LEGACY_AGENT = False
 
 
 def require_keys(*keys: str) -> None:

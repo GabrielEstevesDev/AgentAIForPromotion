@@ -27,7 +27,29 @@ def _to_markdown_table(columns: list[str], rows: list[sqlite3.Row]) -> str:
 @tool
 def sql_query(query: str) -> str:
     """Execute a read-only SQL SELECT query against the e-commerce SQLite database.
-    Returns the SQL query and results formatted as markdown (sql block + table).
+    Returns results as a markdown table. Use only when no query_library query fits.
+
+    DATABASE SCHEMA (SQLite, camelCase columns):
+      Customer      : id, firstName, lastName, email, phone, createdAt
+      Product       : id, name, description, price, category, sku
+      "Order"       : id, customerId, orderDate, status, totalAmount
+                      status: 'Pending' | 'Shipped' | 'Delivered' | 'Cancelled'
+      OrderItem     : id, orderId, productId, quantity, unitPrice
+      Inventory     : id, productId, stockLevel, lastRestock
+      Review        : id, productId, customerId, rating, comment, createdAt
+      ApiUsage      : id, date, requestCount, totalTokens
+      Supplier      : id, name, email, phone, createdAt
+      PurchaseOrder : id, supplierId, createdAt, status, totalAmount
+      PurchaseOrderItem : id, purchaseOrderId, productId (nullable), sku, name, quantity, unitCost
+
+    SQL RULES:
+    - "Order" is reserved — ALWAYS quote it: SELECT * FROM "Order"
+    - All columns are camelCase: firstName, customerId, orderDate
+    - Only SELECT statements allowed
+    - Never SELECT `id` columns (UUIDs) unless the user asks
+    - ALWAYS exclude Cancelled orders unless asked: WHERE status != 'Cancelled'
+    - Use relative dates: date('now', '-30 days'). NEVER hardcode dates.
+    - State the exact period in your response: "Last 30 days: Feb 12 – Mar 14, 2026"
     """
     query = query.strip()
 

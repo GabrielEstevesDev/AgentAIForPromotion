@@ -93,6 +93,15 @@ const frontActions = [
     prompt: "Draft a refund email for the most recent cancelled order.",
     requires_hitl: true,
   },
+  {
+    id: "front-prospect",
+    category: "SQL",
+    title: "AI Use Cases for Clients",
+    description: "Discover top AI workflows to demo to prospects",
+    tool_badges: ["SQL", "RAG"],
+    prompt: "What are the top 5 AI use cases we could demo to a potential e-commerce client? Run a live example of the most impactful one.",
+    requires_hitl: false,
+  },
 ];
 
 export function ChatArea({

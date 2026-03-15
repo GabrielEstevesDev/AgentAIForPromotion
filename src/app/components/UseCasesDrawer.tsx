@@ -66,6 +66,7 @@ const DEFAULT_DATA: UseCaseCardsPayload = {
         { id: "sql-3", title: "Revenue by Category", description: "Revenue breakdown per product category", tool_badges: ["SQL"], prompt: "Show revenue by product category.", requires_hitl: false },
         { id: "sql-4", title: "Low Stock Products", description: "Products with critically low inventory", tool_badges: ["SQL"], prompt: "Which products have the lowest stock levels?", requires_hitl: false },
         { id: "sql-5", title: "Top Customers", description: "Highest-spending customers", tool_badges: ["SQL"], prompt: "Who are the top 10 customers by total spend?", requires_hitl: false },
+        { id: "sql-6", title: "AI Workflow Discovery", description: "Identify which workflows an AI copilot could automate", tool_badges: ["SQL"], prompt: "Analyze this business and identify which workflows an AI copilot could automate. Show data to support each recommendation.", requires_hitl: false },
       ],
     },
     {
@@ -76,6 +77,7 @@ const DEFAULT_DATA: UseCaseCardsPayload = {
         { id: "rag-2", title: "Warranty Info", description: "Product warranty details", tool_badges: ["RAG"], prompt: "What is the warranty policy for electronics?", requires_hitl: false },
         { id: "rag-3", title: "FAQ", description: "Common customer questions", tool_badges: ["RAG"], prompt: "What are the most common customer FAQs?", requires_hitl: false },
         { id: "rag-4", title: "Product Guide", description: "Product categories and comparisons", tool_badges: ["RAG"], prompt: "Give me an overview of product categories.", requires_hitl: false },
+        { id: "rag-5", title: "Policy Lookup Demo", description: "Show how instant policy lookup helps customer service", tool_badges: ["RAG"], prompt: "Show how instant policy lookup could help a customer service team. Demo it with our return and shipping policies.", requires_hitl: false },
       ],
     },
     {
@@ -86,6 +88,7 @@ const DEFAULT_DATA: UseCaseCardsPayload = {
         { id: "web-2", title: "Competitor Analysis", description: "How competitors are pricing similar products", tool_badges: ["WEB"], prompt: "What are competitors charging for electronics?", requires_hitl: false },
         { id: "web-3", title: "AI in Retail", description: "How AI is transforming retail", tool_badges: ["WEB"], prompt: "How is AI being used in retail and e-commerce?", requires_hitl: false },
         { id: "web-4", title: "Holiday Season Tips", description: "Best practices for seasonal sales", tool_badges: ["WEB"], prompt: "What are the best practices for holiday season e-commerce sales?", requires_hitl: false },
+        { id: "web-5", title: "AI Copilot Adoption", description: "How AI copilots are being adopted in e-commerce", tool_badges: ["WEB"], prompt: "Research how AI copilots are being adopted in e-commerce and compare to our capabilities.", requires_hitl: false },
       ],
     },
     {
@@ -96,6 +99,7 @@ const DEFAULT_DATA: UseCaseCardsPayload = {
         { id: "chart-2", title: "Category Pie Chart", description: "Revenue share by category", tool_badges: ["SQL", "PYTHON_CHART"], prompt: "Create a pie chart of revenue distribution by product category.", requires_hitl: false },
         { id: "chart-3", title: "Rating Distribution", description: "Histogram of product ratings", tool_badges: ["SQL", "PYTHON_CHART"], prompt: "Create a bar chart of the rating distribution across all products.", requires_hitl: false },
         { id: "chart-4", title: "Inventory Levels", description: "Bar chart of stock levels by product", tool_badges: ["SQL", "PYTHON_CHART"], prompt: "Create a bar chart of inventory levels for the top 15 products.", requires_hitl: false },
+        { id: "chart-5", title: "Executive Dashboard", description: "AI-powered reporting dashboard demo", tool_badges: ["SQL", "PYTHON_CHART"], prompt: "Create an executive dashboard that demonstrates AI-powered reporting. Include revenue trends and key metrics.", requires_hitl: false },
       ],
     },
     {
@@ -106,6 +110,7 @@ const DEFAULT_DATA: UseCaseCardsPayload = {
         { id: "hitl-2", title: "30-Day Promo Strategy", description: "Build a promotion strategy requiring budget approval", tool_badges: ["SQL", "PYTHON_CHART", "HITL"], prompt: "Create a 30-day promotion strategy to boost revenue.", requires_hitl: true },
         { id: "hitl-3", title: "Replenishment Order", description: "Generate a purchase order draft for low-stock items and update inventory", tool_badges: ["SQL", "PYTHON_CHART", "HITL"], prompt: "Analyze sales velocity and create a replenishment purchase order for items running low on stock.", requires_hitl: true },
         { id: "hitl-4", title: "VIP Compensation", description: "Draft a compensation offer for a VIP customer complaint", tool_badges: ["RAG", "SQL", "HITL"], prompt: "Draft a VIP compensation email for a customer who received a damaged product.", requires_hitl: true },
+        { id: "hitl-5", title: "Error Prevention Demo", description: "Show how AI-assisted approval prevents costly operational errors", tool_badges: ["SQL", "HITL"], prompt: "Walk through how AI-assisted approval prevents costly errors in operations. Demo with a replenishment scenario.", requires_hitl: true },
       ],
     },
   ],

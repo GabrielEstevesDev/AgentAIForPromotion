@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Aria** is a full-stack AI-powered e-commerce assistant designed as a demo-ready product for potential clients. It consists of:
 
 - **Frontend**: Next.js 15 (App Router) with React 19, Tailwind CSS 4, and the Vercel AI SDK (`useChat` hook). Runs on port **3000**.
-- **Backend**: FastAPI with SSE streaming, wrapping a **LangGraph ReAct agent** backed by `gpt-4o-mini`. Runs on port **8001**.
+- **Backend**: FastAPI with SSE streaming, wrapping an **explicit LangGraph StateGraph agent** backed by `gpt-5-mini`. Runs on port **8001**.
 
 The agent answers questions about a SQLite e-commerce database, an internal knowledge base (RAG via ChromaDB), and the live web (via Tavily). It supports an **Approval (HITL)** workflow for high-risk actions (refunds, promotions, purchase orders). Conversations and messages are persisted in SQLite via direct SQL (not Prisma at runtime).
 
@@ -80,7 +80,7 @@ root/
         ChatInput.tsx         — Textarea input with send + Use Cases drawer button
         MessageBubble.tsx     — Renders messages: SQL tabs, approval cards (outside bubble), JSON block extraction, streaming placeholder
         UseCasesDrawer.tsx    — Slide-over drawer with 5 category tabs + card grid
-        HitlApproval.tsx      — Full-width approval card (2-column layout, amber gradient header, controls + evidence)
+        HitlApproval.tsx      — Full-width approval card (2-column layout, amber gradient header, controls + evidence, on_approve/on_reject info)
         Sidebar.tsx           — Navigation tabs (Chat/Database/Documents), conversation list, rename, delete
         ThemeToggle.tsx       — Light/dark mode toggle
         ThemeProvider.tsx     — next-themes provider
@@ -93,12 +93,23 @@ root/
 
   backend/                    — FastAPI backend (Python)
     main.py                   — FastAPI app, CORS, lifespan (builds agent)
-    agent.py                  — build_agent() + stream_agent() with SQL injection + approval detection + PO intent tracking
-    config.py                 — All settings (LLM_MODEL, DB_PATH, CHARTS_DIR, etc.)
+    agent.py                  — Thin facade: delegates to graph/ (StateGraph) or agent_legacy.py based on USE_LEGACY_AGENT flag
+    agent_legacy.py           — Legacy create_react_agent implementation (fallback, USE_LEGACY_AGENT=True)
+    mode_classifier.py        — Response-mode classifier (factual/analytical/chart/hitl/rag/prospecting) — sets max_tokens + tool budget per request
+    validators.py             — Programmatic post-processing: summary/breakdown coherence check, HITL structure validation, response length monitoring
+    config.py                 — All settings (LLM_MODEL, DB_PATH, CHARTS_DIR, USE_LEGACY_AGENT, etc.)
     db.py                     — SQLite connection with dict_factory, WAL mode, 30s timeout
-    hitl_state.py             — Per-thread approval tracking + PO intent tracking (code-level enforcement)
+    hitl_state.py             — Per-thread approval tracking + PO intent tracking (legacy only, used by agent_legacy.py)
+    graph/                    — Explicit StateGraph agent (replaces black-box ReAct loop)
+      __init__.py             — Exports build_graph() and stream_graph()
+      state.py                — AriaState TypedDict (messages, mode, tool_call_count, captured_sqls, HITL fields, po_intent)
+      nodes.py                — Node functions and Runnable chains: classify, execute_tools, extract_hitl, hitl_gate, assemble_response, validate (functions); plan_and_call, force_respond, post_approve (Runnable chains for LLM streaming)
+      edges.py                — Conditional routing: route_after_plan, route_after_tools, route_after_hitl_check
+      builder.py              — build_graph() assembles and compiles the StateGraph with MemorySaver
+      stream.py               — stream_graph() SSE streaming with heartbeat, timeout, SQL injection, HITL resume via Command(resume=...)
     core/
-      system_prompt.py        — Aria's system prompt (3 top rules, tool rules, SQL schema, approval contracts)
+      system_prompt.py        — Core system prompt (~500 tokens): identity, 6 rules, output discipline, self-check. Templates and schema moved to mode_templates.py and tool docstrings.
+      mode_templates.py       — Per-mode instruction templates (factual/analytical/chart/hitl/rag/prospecting). Injected as SystemMessage only for the matching mode.
     routers/
       chat.py                 — POST /api/chat — SSE streaming endpoint
       conversations.py        — CRUD endpoints for conversations + messages
@@ -107,19 +118,21 @@ root/
       database_explorer.py    — GET /api/database/tables — browse DB tables with pagination
       documents.py            — GET /api/documents — serve RAG docs as markdown + PDF (fpdf2)
     tools/
-      query_library.py        — Pre-built SQL query lookup by name (29 queries)
+      query_library.py        — Pre-built SQL query lookup by name (44 queries)
       sql_tool.py             — Read-only SQL SELECT; returns results as markdown table
       rag_tool.py             — Delegates to rag/retriever.py (ChromaDB)
       search_tool.py          — Tavily web search (max 5 results)
       python_tool.py          — Python subprocess executor; captures matplotlib charts as PNG
       purchase_order_tool.py  — LangGraph tool for managing supplier POs (create/approve/receive) with code-level intent guard + approval guard
     queries/
-      library.py              — Dict of 29 named pre-built SQL queries (add entries here to expand)
+      library.py              — Dict of 44 named pre-built SQL queries (add entries here to expand)
     rag/
       ingest.py               — Chunks docs/*.md → ChromaDB (safe to re-run)
       retriever.py            — lru_cache Chroma vectorstore singleton
     charts/                   — Saved chart PNGs (auto-cleaned after 1h)
     chroma_db/                — Persisted ChromaDB vectorstore (auto-generated)
+    tests/
+      eval_prompts.py         — Evaluation harness: 10 test prompts with pass/fail criteria
 
   agent/                      — Original standalone agent (Gradio UI + CLI)
     .venv/                    — Python virtual environment (used by backend too)
@@ -127,7 +140,7 @@ root/
     main.py                   — CLI REPL (/exit, /reset, /tools) — legacy
     requirements.txt          — Python dependencies (includes matplotlib)
 
-  docs/                       — RAG knowledge base (10 Markdown files)
+  docs/                       — RAG knowledge base (11 Markdown files, includes capability-use-case-map.md)
   dev.db                      — SQLite database (Prisma-generated schema)
   prisma/                     — Prisma schema (used for migrations only)
   guidelines.md               — Product guidelines (USE_CASE_CARDS, HITL, output style)
@@ -139,22 +152,27 @@ root/
 2. If no conversation exists yet, a new one is created via `POST /api/conversations`
 3. `useChat` sends a request to Next.js route `/api/chat/route.ts`
 4. The Next.js route proxies to `POST http://127.0.0.1:8001/api/chat` and bridges the FastAPI SSE stream into the Vercel AI SDK data stream format (`0:` text tokens, `d:` done)
-5. FastAPI's `stream_agent` runs the LangGraph ReAct loop:
-   - Detects approval messages and sets the per-thread approval flag
-   - Tracks PO intent from user keywords (purchase order, replenish, restock, etc.)
-   - Listens for `on_tool_end` events from `sql_query` / `query_library` and captures the SQL
-   - Injects a ` ```sql ` block before the first response token (so the SQL always appears)
-   - Streams the LLM's final answer token by token
-6. After streaming completes, messages are persisted to SQLite. Auto-title is generated for the first exchange.
-7. `onFinish` in `useChat` fires `aria:conversation-updated` DOM events to refresh the sidebar
+5. FastAPI's `stream_agent` delegates to `stream_graph()` which runs the Aria StateGraph:
+   - **classify node**: Classifies user message into a response mode via `mode_classifier.py`, detects HITL approval and PO intent, prepends mode instruction
+   - **plan_and_call node**: LLM with tools bound produces either tool calls or text
+   - **execute_tools node**: Runs tool calls, increments `tool_call_count` in graph state, captures SQL from `sql_query`
+   - **Conditional edge (route_after_tools)**: If `tool_call_count < max_tool_calls` → loops back to `plan_and_call`; else → `force_respond`
+   - **force_respond node**: LLM *without* tools bound (physically cannot call tools), receives a SystemMessage to produce final answer
+   - **extract_hitl node**: Scans AI response for `HITL_REQUEST` JSON blocks
+   - **hitl_gate node** (if HITL detected): Calls `interrupt()` — graph pauses, SSE stream ends with the HITL_REQUEST content
+   - **assemble_response + validate nodes**: Build final response text, run coherence/HITL validators
+   - The streaming layer (`stream.py`) captures SQL from `on_tool_end` events and injects ` ```sql ` blocks before the first text token
+6. For HITL approval: user clicks Approve → `[HITL Response]` message → `stream_graph()` detects this and resumes the graph via `Command(resume=decision)` → **post_approve** node produces the final artifact
+7. After streaming completes, `chat.py` runs post-processing validators. Messages are persisted to SQLite. Auto-title is generated for the first exchange.
+8. `onFinish` in `useChat` fires `aria:conversation-updated` DOM events to refresh the sidebar
 
 ### SQL Query Tab Feature
 
-When the agent uses `sql_query`, the response content is automatically prefixed with the SQL in a ` ```sql ` fenced block (injected in `agent.py`, not by the LLM). `MessageBubble` parses the content and detects ` ```sql ``` + markdown table` pairs, rendering them as a unified `SqlResultsBlock` component with:
+When the agent uses `sql_query`, the response content is automatically prefixed with the SQL in a ` ```sql ` fenced block (injected in `graph/stream.py`, not by the LLM). `MessageBubble` parses the content and detects ` ```sql ``` + markdown table` pairs, rendering them as a unified `SqlResultsBlock` component with:
 - **Results tab** (default) — styled table with "Copy CSV" button
 - **SQL Query tab** — exact SQL with "Copy SQL" button
 
-The SQL injection happens at the streaming layer (`stream_agent` in `agent.py`) via `on_tool_end` events, making it 100% reliable regardless of LLM behavior.
+The SQL injection happens at the streaming layer (`stream_graph` in `graph/stream.py`) via `on_tool_end` events, making it 100% reliable regardless of LLM behavior.
 
 ### Chart Feature
 
@@ -179,14 +197,14 @@ When the agent encounters a high-risk action (refund email, promotion, purchase 
 7. Agent produces the final artifact (email, strategy, purchase order) or adjusts based on feedback
 
 **Code-level enforcement** (3 layers):
-1. **Approval guard** (`backend/hitl_state.py` + `purchase_order_tool.py`): `stream_agent` detects `[HITL Response]` approval messages and sets a per-thread flag. `purchase_order_action` tool blocks `create_po`/`approve_po`/`receive_po` unless the flag is set.
-2. **PO intent guard** (`backend/agent.py` + `purchase_order_tool.py`): `stream_agent` scans user messages for PO-related keywords (purchase order, replenish, restock, etc.). `purchase_order_action` blocks ALL actions (even `list_suppliers`) unless the user has explicitly mentioned PO/replenishment. This prevents hallucinated PO workflows during unrelated tasks.
-3. **System prompt rules** (`backend/core/system_prompt.py`): 3 prominent rules at the top — mandatory approval, stay on topic, PO only for replenishment. Plus anti-hallucination rules against casual positive responses triggering new tasks.
+1. **Native interrupt** (`backend/graph/nodes.py` — `hitl_gate`): When a HITL_REQUEST is detected in the AI response, the graph calls `interrupt()` which pauses execution. The graph resumes only when the user approves via `Command(resume=decision)`. Approval and PO intent are tracked in graph state (`hitl_approved`, `po_intent`), not global dicts. The `execute_tools` and `post_approve` nodes inject these into the config so tools can check them.
+2. **PO intent guard** (`purchase_order_tool.py`): In StateGraph mode, reads `po_intent` and `hitl_approved` from the config's `configurable` dict (set by graph nodes). In legacy mode, falls back to `hitl_state.py` global dicts.
+3. **System prompt rules** (`backend/core/system_prompt.py`): 6 core rules (mandatory approval, stay on topic, PO only for replenishment, speed/tool budget, single source per metric, no charts in HITL pre-approval). HITL contract and use case specs are in `backend/core/mode_templates.py` and only injected for HITL-mode requests.
 
 **3 required approval use cases:**
 - **Refund/Dispute Email** — RAG + SQL → email draft with tone/resolution controls. Email must include product names (not IDs) and total refund amount. After approval: final email + "email sending not configured" demo note.
-- **30-Day Promotion Strategy** — SQL + charts → strategy with budget/discount controls
-- **Replenishment + Purchase Order** — SQL + charts → PO draft with budget controls, auto-receives inventory on approval
+- **30-Day Promotion Strategy** — SQL + charts → strategy with revenue baseline, category share, product tiers (Promote/Hold/Liquidate), KPI targets, budget/discount controls
+- **Replenishment + Purchase Order** — SQL + charts → PO draft with per-item velocity, days of cover, suggested qty, line costs, grand total, budget controls, auto-receives inventory on approval
 
 **Customer-facing content rules:**
 - Never expose internal IDs, UUIDs, or SKUs in emails or customer messages
@@ -212,7 +230,7 @@ The system supports a full supplier purchase order lifecycle:
 
 The agent uses `purchase_order_action` tool after approval. The REST API at `/api/purchase-orders` also exposes these operations directly.
 
-**PO intent guard**: The `purchase_order_action` tool is completely blocked unless the user has explicitly mentioned PO/replenishment keywords in the conversation. This is enforced at code level in `purchase_order_tool.py` via `has_po_intent()` from `hitl_state.py`.
+**PO intent guard**: The `purchase_order_action` tool is completely blocked unless the user has explicitly mentioned PO/replenishment keywords in the conversation. In StateGraph mode, `po_intent` is tracked in graph state and passed to tools via augmented config. In legacy mode, falls back to `has_po_intent()` from `hitl_state.py`.
 
 ### Database Explorer Feature (`/database`)
 
@@ -253,18 +271,21 @@ The agent chains tools as needed — e.g. `query_library` → `python_executor` 
 
 ### Query Library
 
-29 pre-built queries in `backend/queries/library.py`, organised by category:
+37 pre-built queries in `backend/queries/library.py`, organised by category:
 
 | Category | Query names |
 |---|---|
-| Sales/Revenue | `total_revenue`, `revenue_by_month`, `revenue_by_category` |
-| Products | `top_products_by_revenue`, `top_products_by_quantity`, `products_by_category`, `top_rated_products`, `products_without_reviews` |
-| Inventory | `low_stock`, `out_of_stock`, `inventory_overview` |
-| Orders | `orders_by_status`, `recent_orders`, `orders_today`, `pending_orders` |
-| Customers | `top_customers_by_spend`, `new_customers_this_month`, `customer_count`, `customers_with_most_orders` |
+| Sales/Revenue | `total_revenue`, `revenue_by_month`, `revenue_by_category`, `sales_last_30d`, `aov_by_month`, `revenue_share_by_category` |
+| Products | `top_products_by_revenue`, `top_products_by_quantity`, `products_by_category`, `top_rated_products`, `products_without_reviews`, `top_products_with_share`, `high_rated_low_sales` |
+| Inventory | `low_stock`, `out_of_stock`, `inventory_overview`, `stockout_risk` |
+| Orders | `orders_by_status`, `recent_orders`, `orders_today`, `pending_orders`, `cancelled_order_rate` |
+| Customers | `top_customers_by_spend`, `new_customers_this_month`, `customer_count`, `customers_with_most_orders`, `customer_segments` |
 | Reviews | `rating_distribution`, `recent_reviews`, `worst_rated_products` |
 | API Usage | `api_usage_last_30_days`, `api_usage_summary` |
-| Suppliers & POs | `suppliers`, `purchase_orders`, `sales_velocity`, `replenishment_candidates` |
+| Suppliers & POs | `suppliers`, `purchase_orders`, `sales_velocity`, `replenishment_candidates`, `reorder_with_cost` |
+| Prospecting | `business_health_snapshot`, `opportunity_matrix`, `automation_candidates` |
+
+**Analytical queries added (9 new):** `sales_last_30d` (30d summary with period-over-period comparison), `aov_by_month` (AOV trend), `revenue_share_by_category` (% share), `top_products_with_share` (top 15 with % share), `stockout_risk` (< 14 days cover), `high_rated_low_sales` (hidden gems), `customer_segments` (VIP/Regular/Occasional/New tiers), `cancelled_order_rate` (monthly %), `reorder_with_cost` (suggested qty + PO line costs).
 
 To add a new query: add an entry to `QUERY_LIBRARY` in `backend/queries/library.py` — no other files need changes.
 
@@ -326,7 +347,7 @@ Run `python -m rag.ingest` from `agent/` after adding or modifying docs. Chunk s
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_MODEL` | `gpt-4o-mini` | OpenAI chat model |
+| `LLM_MODEL` | `gpt-5-mini-2025-08-07` | OpenAI chat model |
 | `EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI embedding model |
 | `EXECUTOR_TIMEOUT_SEC` | `30` | Python executor subprocess timeout |
 | `RAG_TOP_K` | `5` | Number of RAG chunks returned |
@@ -334,6 +355,7 @@ Run `python -m rag.ingest` from `agent/` after adding or modifying docs. Chunk s
 | `CHROMA_DIR` | `agent/chroma_db/` | ChromaDB persistence directory |
 | `CHARTS_DIR` | `backend/charts/` | Directory for saved chart PNGs |
 | `BACKEND_BASE_URL` | `http://127.0.0.1:8001` | Used by python_tool to build chart URLs |
+| `USE_LEGACY_AGENT` | `False` | Set `True` to fall back to the old create_react_agent implementation |
 | `BACKEND_URL` | `http://localhost:8001` | Frontend → backend base URL (in `src/lib/backend.ts`) |
 
 ## Frontend Notes
@@ -343,7 +365,7 @@ Run `python -m rag.ingest` from `agent/` after adding or modifying docs. Chunk s
 - **JSON block extraction**: `MessageBubble` runs `extractStructuredBlocks()` (from `src/lib/parsers.ts`) before SQL parsing to detect `USE_CASE_CARDS` and `HITL_REQUEST` JSON blocks. These are stripped from visible content and rendered as UI components. Extraction is skipped during streaming (`isStreaming` prop) to avoid parsing partial JSON.
 - **Streaming approval placeholder**: During streaming, `MessageBubble` detects partial ` ```json ` blocks containing `HITL_REQUEST` and replaces them with an amber "Creating approval..." card with a spinner, instead of showing raw JSON.
 - **SQL tab rendering**: `MessageBubble` runs `parseMessageContent()` on the cleaned content to find ` ```sql ``` + table` pairs. These are rendered as `SqlResultsBlock` (tabbed: Results / SQL Query). Standalone tables without SQL get a simpler `Results` card.
-- **Approval rendering**: `HitlApproval` component renders **outside the message bubble** as a full-width card. Two-column layout: evidence/preview on the left, controls on the right. Amber gradient header with risk tags. Actions dispatch `[HITL Response]` user messages via `ConversationClient.handleHitlAction()`.
+- **Approval rendering**: `HitlApproval` component renders **outside the message bubble** as a full-width card. Two-column layout: evidence/preview on the left, controls on the right. Amber gradient header with risk tags. Evidence section is **expanded by default** (`useState(true)`). "On approve" and "On reject" info lines are rendered above the action bar when present in the HITL payload. Actions dispatch `[HITL Response]` user messages via `ConversationClient.handleHitlAction()`.
 - **Approval Response messages**: User messages starting with `[HITL Response]` are rendered as a friendly bubble (checkmark + "Approved" or X + "Rejected") via `HitlResponseBubble` in `MessageBubble.tsx` — the raw JSON/control data is hidden from the user. `handleHitlAction` submits directly via `append()` without setting the input field.
 - **Use Cases Drawer**: `UseCasesDrawer` component with 5 tabs (SQL, RAG, WEB, Charts, Approval). Falls back to hardcoded default cards when no LLM-provided data exists. Opened via "Browse All Use Cases" button or the grid icon in `ChatInput`. Internal IDs use `"HITL"` but display text shows `"Approval"` via `BADGE_LABELS` mapping.
 - **Chart rendering**: `MessageBubble` overrides the `img` ReactMarkdown component to render charts with rounded border styling.
@@ -369,42 +391,75 @@ Run `python -m rag.ingest` from `agent/` after adding or modifying docs. Chunk s
 4. **No overall timeout on the agent** — a stuck ReAct loop could hang indefinitely
 5. **No error logging** — failures in the agent loop were swallowed silently
 
-**Fix applied (files changed):**
+**Fix applied — Explicit StateGraph (replaces black-box ReAct agent):**
 
-- **`backend/agent.py`** — Core fix:
-  - **Tool call counter + forced response (`_MAX_TOOL_CALLS = 10`)**: After 10 tool calls without producing text, `_run_with_retry()` detects the agent is stuck and calls `_force_final_response()`, which sends a follow-up message with `recursion_limit=4` forcing the LLM to answer with the data it already has
-  - **Heartbeat mechanism**: Every 8 seconds of silence, an empty token is yielded to keep the SSE connection alive
-  - **90-second overall timeout**: Agent run is capped; produces a user-friendly warning if exceeded
-  - **`timeout=60`** on `ChatOpenAI` to prevent individual OpenAI API calls from hanging
-  - **`recursion_limit=25`** in the runtime config to prevent runaway loops
-  - **Console logging**: Every tool call is logged with name and input for debugging
+- **`backend/graph/`** — New StateGraph implementation:
+  - **Structural tool limit**: Conditional edge in `edges.py` routes to `force_respond` when `tool_call_count >= max_tool_calls`. Graph physically cannot loop past limit.
+  - **force_respond node**: LLM without `bind_tools()` — physically cannot call tools. Uses SystemMessage (not HumanMessage) for the stop instruction.
+  - **No orphaned tool calls**: Graph always completes to END. No patching needed.
+  - **Native HITL interrupts**: `hitl_gate` node calls `interrupt()` — graph pauses. Resume via `Command(resume=decision)`. No global dicts.
+  - **State-based PO intent/approval**: `po_intent` and `hitl_approved` live in graph state, passed to tools via augmented config. Thread-safe by design.
+  - **Per-thread asyncio locks**: Prevent concurrent requests from corrupting checkpoints.
+  - **Response-mode classifier** (`mode_classifier.py`): Unchanged — classifies each message and sets `max_tokens`/`max_tool_calls`.
+  - **Heartbeat mechanism**: Every 5 seconds of silence, empty token keeps SSE alive.
+  - **90-second overall timeout**: Agent run capped; produces user-friendly warning if exceeded.
+  - **`recursion_limit=25`** in runtime config.
+
+- **`backend/agent.py`** — Thin facade:
+  - Delegates to `backend/graph/` (StateGraph) or `backend/agent_legacy.py` based on `USE_LEGACY_AGENT` flag in `config.py`.
+
+- **`backend/agent_legacy.py`** — Legacy fallback:
+  - Original `create_react_agent` implementation preserved for rollback. Set `USE_LEGACY_AGENT=True` in `config.py` to activate.
+
+- **`backend/validators.py`** — Post-processing validation:
+  - **Summary/breakdown coherence**: Detects if a stated dollar total deviates >10% from the table breakdown
+  - **HITL structure validation**: Checks HITL_REQUEST JSON for required fields, non-empty evidence, valid artifacts
+  - **Response length monitoring**: Logs warnings when responses exceed mode-specific length limits
 
 - **`src/app/api/chat/route.ts`** — Frontend proxy:
-  - **`maxDuration = 180`** export to allow long-running requests
-  - **`AbortController` with 180s timeout** on the backend fetch
-  - Empty heartbeat tokens are silently skipped (not written to the Vercel AI SDK data stream)
+  - **`maxDuration = 120`** export to allow long-running requests (raised from 60)
+  - **`AbortController` with 120s timeout** on the backend fetch
+  - Empty heartbeat tokens are silently skipped
 
-- **`backend/routers/chat.py`** — Error handling:
-  - Error logging with conversation ID
-  - User-friendly messages for recursion limit and timeout errors
+- **`backend/routers/chat.py`** — Post-processing:
+  - Runs `check_summary_breakdown_coherence()` and `validate_hitl_structure()` after response assembly
+  - Appends coherence footnotes if mismatch detected
+  - Logs HITL validation warnings
 
-- **`backend/main.py`** — Observability:
-  - `logging.basicConfig()` configured so agent errors appear in the terminal
+- **`backend/core/system_prompt.py`** — 3-tier prompt architecture:
+  - Core prompt reduced to ~500 tokens (identity, 6 rules, output discipline, self-check)
+  - Response templates, HITL contracts, chart standards, prospecting mode, schema, tool guide → moved out
+  - **`backend/core/mode_templates.py`** (new) — Per-mode injection templates (factual/analytical/chart/hitl/rag/prospecting). Only the matching mode's template is sent per request.
+  - **Tool docstrings enriched** — Database schema → `sql_tool.py`, query names → `query_library.py`, RAG rules → `rag_tool.py`, chart standards → `python_tool.py`, web rules → `search_tool.py`
+  - **`backend/graph/nodes.py`** — `_build_system_prompt(state)` helper reads `state["mode"]` and appends the matching template. Used by all 3 preprocess functions.
+  - Net result: ~550–1,235 tokens per request vs ~5,200 before (~70% reduction)
 
-**How to verify:** Restart the backend, ask a complex question like "Create a 30-day promotion strategy to increase revenue based on our sales data." Watch the backend terminal — you should see numbered tool calls logged. After at most 10 tool calls, the agent should produce a text response.
+- **`backend/tools/python_tool.py`** — Chart insight hint:
+  - After chart generation, appends instruction: "write exactly 1 INSIGHT line and 1 ACTION line, then stop"
 
-**If the problem persists:** The `_MAX_TOOL_CALLS` limit (currently 10) or the `_STOP_TOOLS_MSG` in `backend/agent.py` may need tuning. Consider upgrading from `gpt-4o-mini` to `gpt-4o` in `backend/config.py` — larger models are better at deciding when to stop calling tools.
+**How to verify:** Restart the backend, ask a complex question like "Create a 30-day promotion strategy to increase revenue based on our sales data." Watch the backend terminal — you should see mode classification and numbered tool calls logged. Verify: (1) response completes without timeout, (2) response is shorter than before, (3) HITL_REQUEST has required fields.
+
+**If the problem persists:** Adjust `max_tokens` per mode in `backend/mode_classifier.py`, or the `_STOP_TOOLS_MSG` in `backend/graph/nodes.py`.
+
+### Streaming Architecture Note
+
+LLM-calling nodes in `backend/graph/nodes.py` **must** be Runnable chains (`RunnableLambda | ChatOpenAI | RunnableLambda`), not function nodes that call `llm.ainvoke()`. This is required for `astream_events(version="v2")` to capture individual tokens via `on_chat_model_stream` events. Direct `llm.ainvoke()` calls inside function nodes are opaque to `astream_events` and produce zero streaming tokens. The three Runnable chain nodes are: `plan_and_call`, `force_respond`, and `post_approve`.
 
 ## Common Tasks for Claude Code
 
 - **Test the app**: Start both servers, then use Playwright MCP to navigate to `http://localhost:3000`
 - **Add a pre-built query**: Add an entry to `QUERY_LIBRARY` in `backend/queries/library.py` — no other files need changes
-- **Add a new tool**: Create in `backend/tools/`, import in `backend/tools/__init__.py`, add to `ALL_TOOLS` list, document in `backend/core/system_prompt.py`
+- **Add a new tool**: Create in `backend/tools/`, import in `backend/tools/__init__.py`, add to `ALL_TOOLS` list. Put usage instructions in the tool's docstring (not system_prompt.py). If the tool is mode-specific, add a template entry in `backend/core/mode_templates.py`.
 - **Add RAG docs**: Place `.md` files in `docs/`, then run `python -m rag.ingest` from `agent/`
+- **Switch to legacy agent**: Set `USE_LEGACY_AGENT = True` in `backend/config.py`
 - **Change the LLM**: Update `LLM_MODEL` in `backend/config.py`
 - **Add a new API route (backend)**: Create router in `backend/routers/`, register in `backend/main.py`
 - **Add a new page (frontend)**: Create under `src/app/`, add layout using `<AppShell>`, add nav tab in `Sidebar.tsx`
 - **Change backend port**: Update `BACKEND_BASE_URL` in `backend/config.py` AND the default in `src/lib/backend.ts`
-- **Add an approval use case**: Define controls + triggers in `backend/core/system_prompt.py`, add a card to `UseCasesDrawer.tsx` defaults, add to `ChatArea.tsx` front actions if replacing one
+- **Add an approval use case**: Define controls + triggers in the `hitl` template in `backend/core/mode_templates.py`, add a card to `UseCasesDrawer.tsx` defaults, add to `ChatArea.tsx` front actions if replacing one
 - **Add a supplier**: Insert into `Supplier` table (or add to `prisma/seed.ts` for full reseeds)
-- **Modify system prompt rules**: Edit `backend/core/system_prompt.py` — the 3 top rules (mandatory approval, stay on topic, PO scope) are critical for preventing agent hallucinations
+- **Modify system prompt rules**: Edit `backend/core/system_prompt.py` for core rules, or `backend/core/mode_templates.py` for per-mode templates
+- **Tune response mode**: Edit `backend/mode_classifier.py` — adjust `max_tokens`, `max_tool_calls`, or keyword patterns per mode
+- **Add a validator**: Add a function to `backend/validators.py`, call it in `backend/routers/chat.py` after response assembly
+- **Run eval harness**: `"agent/.venv/Scripts/python.exe" backend/tests/eval_prompts.py` — sends 23 test prompts to the running backend. Checks: required/forbidden strings, length ceilings, timeout tracking. Reports PASS/WARN/FAIL. Backend must be running.
+- **Add an eval test**: Add entries to the `TESTS` list in `backend/tests/eval_prompts.py` with `name`, `prompt`, `required`, `required_any`, `forbidden`, and optionally `max_response_length`

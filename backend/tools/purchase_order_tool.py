@@ -5,9 +5,8 @@ from datetime import datetime
 from langchain_core.runnables import ensure_config
 from langchain_core.tools import tool
 
-from ..config import DB_PATH
+from ..config import DB_PATH, USE_LEGACY_AGENT
 from ..db import get_connection
-from ..hitl_state import has_po_intent, is_approved
 
 # Actions that modify the database — require HITL approval
 _WRITE_ACTIONS = {"create_po", "approve_po", "receive_po"}
@@ -32,16 +31,27 @@ def purchase_order_action(action: str, data: str = "{}") -> str:
     except json.JSONDecodeError:
         return "Error: invalid JSON in data parameter."
 
-    # ── Code-level intent guard ─────────────────────────────────────────
-    # Block ALL purchase_order_action calls if the user never asked for PO work.
-    # This prevents the LLM from hallucinating PO workflows during unrelated tasks.
+    # ── Code-level intent & approval guards ─────────────────────────────
     try:
         config = ensure_config()
-        thread_id = config.get("configurable", {}).get("thread_id", "")
+        configurable = config.get("configurable", {})
+        thread_id = configurable.get("thread_id", "")
     except Exception:
+        configurable = {}
         thread_id = ""
 
-    if not has_po_intent(thread_id):
+    if USE_LEGACY_AGENT:
+        # Legacy mode: use global dicts from hitl_state
+        from ..hitl_state import has_po_intent, is_approved
+        po_intent = has_po_intent(thread_id)
+        approved = is_approved(thread_id)
+    else:
+        # StateGraph mode: approval and intent are passed via graph state → config
+        # The post_approve node sets these before tool execution
+        po_intent = configurable.get("po_intent", False)
+        approved = configurable.get("hitl_approved", False)
+
+    if not po_intent:
         return (
             "Error: The user has not requested any purchase order or replenishment work. "
             "Do NOT call purchase_order_action unless the user explicitly asks for "
@@ -49,9 +59,8 @@ def purchase_order_action(action: str, data: str = "{}") -> str:
             "Continue with the current task instead."
         )
 
-    # ── Code-level HITL enforcement ──────────────────────────────────────
     if action in _WRITE_ACTIONS:
-        if not is_approved(thread_id):
+        if not approved:
             return (
                 "Error: This action requires human approval. "
                 "You must first output a HITL_REQUEST JSON block and wait for "

@@ -1,3 +1,4 @@
+import datetime
 import sqlite3
 
 from langchain_core.tools import tool
@@ -44,13 +45,30 @@ def _run_query(sql: str) -> str:
 @tool
 def query_library(query_name: str) -> str:
     """Execute a pre-built SQL query from the library by name.
+    Preferred over sql_query — faster and more reliable. NEVER call query_library('list').
 
-    Use query_name='list' to get all available queries and their descriptions.
-    Pre-built queries are faster and more reliable than writing SQL from scratch —
-    prefer them whenever a query name matches the user's intent.
+    AVAILABLE QUERIES (use these names directly):
+      Sales: total_revenue, revenue_by_month, revenue_by_category, sales_last_7d, sales_last_30d,
+             sales_last_90d, aov_by_month, revenue_share_by_category (all-time),
+             revenue_by_category_30d, revenue_by_category_90d
+      Products: top_products_by_revenue, top_products_by_quantity, products_by_category,
+                top_rated_products, products_without_reviews, top_products_with_share,
+                high_rated_low_sales
+      Inventory: low_stock, out_of_stock, inventory_overview, stockout_risk
+      Orders: orders_by_status, recent_orders, orders_today, pending_orders, cancelled_order_rate
+      Customers: top_customers_by_spend, new_customers_this_month, customer_count,
+                 customers_with_most_orders, customer_segments
+      Reviews: rating_distribution, recent_reviews, worst_rated_products
+      API: api_usage_last_30_days, api_usage_summary
+      Suppliers/POs: suppliers, purchase_orders, sales_velocity, replenishment_candidates,
+                     reorder_with_cost
+      Prospecting: business_health_snapshot, opportunity_matrix, automation_candidates
 
-    Available categories: sales/revenue, products, inventory, orders, customers,
-    reviews, api_usage.
+    SELECTION HINTS:
+    - Stockout risk / days of cover → stockout_risk (NOT low_stock)
+    - Low stock / below threshold → low_stock
+    - Revenue for specific period → revenue_by_category_30d, revenue_by_category_90d, sales_last_7d, etc.
+    - Typical plans: simple question = 1 call, complex analysis = 2 calls, HITL = 2 calls max
     """
     if query_name.strip().lower() == "list":
         lines = ["**Available pre-built queries:**\n"]
@@ -66,4 +84,14 @@ def query_library(query_name: str) -> str:
             f"Call with query_name='list' to see all options, or choose from: {names}"
         )
 
-    return _run_query(entry["sql"])
+    result = _run_query(entry["sql"])
+
+    # Inject computed date range so the LLM sees real dates
+    days = entry.get("date_range_days")
+    if days:
+        end = datetime.date.today()
+        start = end - datetime.timedelta(days=days)
+        prefix = f"_Date range: {start.strftime('%b %d, %Y')} – {end.strftime('%b %d, %Y')} ({days} days)_\n\n"
+        result = prefix + result
+
+    return result

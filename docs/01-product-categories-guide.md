@@ -19,7 +19,7 @@ Electronics encompasses personal tech devices, computer peripherals, audio equip
 ### Key Characteristics
 - Spec-heavy product descriptions (resolution, frequency, connectivity)
 - Compatibility with major operating systems (Windows, macOS, Linux)
-- Warranty expectations: minimum 1 year
+- Warranty expectations: customers typically expect a minimum 1-year manufacturer warranty (this is an industry norm, NOT a platform guarantee — check individual product listings for actual warranty terms)
 - High return rate if specs don't match expectations
 
 ### Top Product Types

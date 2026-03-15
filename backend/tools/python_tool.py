@@ -54,6 +54,17 @@ def python_executor(code: str) -> str:
     """Execute Python code and return stdout plus stderr.
     Matplotlib charts are automatically captured and returned as inline markdown images.
     To produce a chart: import matplotlib.pyplot as plt, build the plot, call plt.tight_layout() — do NOT call plt.show().
+
+    CHART STANDARDS:
+    - plt.style.use('seaborn-v0_8-whitegrid')
+    - Descriptive title: plt.title('Revenue by Category – Last 12 Months')
+    - Labeled axes with units
+    - plt.tight_layout()
+    - Thousands separator for large numbers
+    - ONE chart per response. No charts in HITL pre-approval.
+    - SORTING: If x-axis is dates/months/time → ALWAYS sort chronologically ascending (oldest left, newest right). NEVER sort time-series by value. Only sort by value when x-axis is a non-time category (product names, categories).
+
+    CRITICAL: You MUST call python_executor to create charts. Never write markdown image links like ![chart](attachment://...) — they don't work.
     """
     _cleanup_old_charts()
     code = textwrap.dedent(code)
@@ -74,7 +85,17 @@ def python_executor(code: str) -> str:
         if result.stderr.strip():
             output_parts.append(f"[stderr]\n{result.stderr.strip()}")
 
-        return "\n".join(output_parts) if output_parts else "Code executed successfully - no output."
+        result = "\n".join(output_parts) if output_parts else "Code executed successfully - no output."
+
+        # If a chart was generated, append insight hint to guide concise commentary
+        if "![chart]" in result:
+            result += (
+                "\n\n[CHART GENERATED — write exactly 1 INSIGHT line "
+                "(what pattern the chart shows) and 1 ACTION line "
+                "(what to do about it), then stop. No other commentary.]"
+            )
+
+        return result
     except subprocess.TimeoutExpired:
         return f"Error: execution timed out after {EXECUTOR_TIMEOUT_SEC} seconds."
     except Exception as exc:

@@ -49,9 +49,22 @@ export function HitlApproval({ hitl, onAction, isResolved, resolvedAction }: Hit
     return defaults;
   });
 
-  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const [evidenceOpen, setEvidenceOpen] = useState(true);
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState("");
+
+  // Validation warnings
+  const warnings: string[] = [];
+  if (hitl.evidence.length === 0) warnings.push("No supporting evidence provided");
+  if (hitl.artifacts_preview.length === 0) warnings.push("No preview content available");
+  const hasPoArtifact = hitl.artifacts_preview.some(
+    (a) => a.type.includes("PURCHASE_ORDER") || a.type.includes("REPLENISHMENT")
+  );
+  if (hasPoArtifact) {
+    const allContent = hitl.artifacts_preview.map((a) => a.content).join("");
+    const hasNonZeroCost = /\$[1-9]/.test(allContent);
+    if (!hasNonZeroCost) warnings.push("Purchase order appears to have a $0 total — review carefully");
+  }
 
   function updateControl(id: string, value: unknown) {
     setControlValues((prev) => ({ ...prev, [id]: value }));
@@ -116,6 +129,18 @@ export function HitlApproval({ hitl, onAction, isResolved, resolvedAction }: Hit
           </div>
         )}
       </div>
+
+      {/* ── Validation warnings ── */}
+      {warnings.length > 0 && (
+        <div className="border-b border-amber-500/25 bg-amber-500/10 px-5 py-2.5">
+          {warnings.map((w, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs text-amber-300">
+              <AlertTriangle size={12} className="shrink-0" />
+              <span>{w}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Body ── */}
       <div className={isResolved ? "pointer-events-none" : ""}>
@@ -317,6 +342,22 @@ export function HitlApproval({ hitl, onAction, isResolved, resolvedAction }: Hit
               placeholder="Describe what you'd like changed..."
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] transition-colors focus:border-amber-400"
             />
+          </div>
+        )}
+
+        {/* ── On approve / On reject info ── */}
+        {(hitl.on_approve?.next_step || hitl.on_reject?.fallback) && (
+          <div className="border-t border-[var(--border)] px-5 py-2 space-y-1">
+            {hitl.on_approve?.next_step && (
+              <p className="text-[10px] text-[var(--muted)]">
+                <span className="font-semibold">On approve:</span> {hitl.on_approve.next_step}
+              </p>
+            )}
+            {hitl.on_reject?.fallback && (
+              <p className="text-[10px] text-[var(--muted)]">
+                <span className="font-semibold">On reject:</span> {hitl.on_reject.fallback}
+              </p>
+            )}
           </div>
         )}
 

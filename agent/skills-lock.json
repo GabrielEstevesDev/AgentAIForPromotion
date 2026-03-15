@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "deep-agents-orchestration": {
+      "source": "langchain-ai/langchain-skills",
+      "sourceType": "github",
+      "computedHash": "fb3a558ec0c485ae813e23140cd2ff7df7b8e00b6538eea760816fa78546180e"
+    }
+  }
+}

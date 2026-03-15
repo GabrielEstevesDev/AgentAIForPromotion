@@ -27,13 +27,14 @@ def _get_vectorstore() -> Chroma:
 
 def query(text: str, top_k: int = RAG_TOP_K) -> list[dict]:
     vectorstore = _get_vectorstore()
-    results = vectorstore.similarity_search(text, k=top_k)
+    results = vectorstore.similarity_search_with_relevance_scores(text, k=top_k)
     return [
         {
             "text": doc.page_content,
             "source": doc.metadata.get("source", "unknown"),
             "chunk_index": doc.metadata.get("chunk_index", -1),
+            "relevance_score": round(score, 3),
         }
-        for doc in results
+        for doc, score in results
     ]
 
