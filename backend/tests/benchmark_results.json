@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-15T17:45:50",
+  "timestamp": "2026-03-15T20:37:45",
   "backend_url": "http://127.0.0.1:8001",
   "scenario_count": 10,
   "success_count": 10,
@@ -9,79 +9,91 @@
       "scenario_name": "Baseline (no tools)",
       "category": "baseline",
       "client_metrics": {
-        "ttft_seconds": 8.227,
-        "tps": 0.0,
-        "total_duration_seconds": 46.257,
-        "total_tokens": 1,
-        "response_length_chars": 24
+        "ttft_seconds": 0.224,
+        "tps": 39.6,
+        "total_duration_seconds": 8.381,
+        "total_tokens": 323,
+        "response_length_chars": 1461
       },
       "backend_metrics": {
-        "fastapi_ttft_seconds": 8.0188,
-        "backend_ttft_seconds": 0.0,
-        "first_llm_call_seconds": 0.0074,
-        "llm_thinking_seconds": 0.1532,
-        "total_tool_time_seconds": 0.0055,
-        "estimated_llm_time_seconds": 46.0347,
-        "total_graph_duration_seconds": 46.0402,
-        "total_request_duration_seconds": 46.0489
+        "fastapi_ttft_seconds": 0.0008,
+        "backend_ttft_seconds": 2.9553,
+        "first_llm_call_seconds": 0.0073,
+        "llm_thinking_seconds": 0.1719,
+        "total_tool_time_seconds": 0.033,
+        "estimated_llm_time_seconds": 7.7219,
+        "total_graph_duration_seconds": 7.7549,
+        "total_request_duration_seconds": 7.7645
       },
       "tool_calls": [
         {
           "name": "query_library",
-          "duration": 0.0055
+          "duration": 0.0059
+        },
+        {
+          "name": "query_library",
+          "duration": 0.0271
         }
       ],
       "llm_calls": [
         {
           "name": "LLM Call #1",
-          "duration": 8.004
+          "duration": 2.312
         },
         {
           "name": "LLM Call #2",
-          "duration": 38.0061
+          "duration": 5.3844
         }
       ],
       "perf_timeline": [
         {
+          "name": "FastAPI TTFT",
+          "duration": 0.0008
+        },
+        {
           "name": "Request -> First LLM Call",
-          "duration": 0.0074
+          "duration": 0.0073
         },
         {
           "name": "LLM Call #1",
-          "duration": 8.004
+          "duration": 2.312
         },
         {
           "name": "LLM Thinking Before Tool Call",
-          "duration": 0.1532
-        },
-        {
-          "name": "FastAPI TTFT",
-          "duration": 8.0188
+          "duration": 0.1719
         },
         {
           "name": "Tool: query_library",
-          "duration": 0.0055
+          "duration": 0.0059
+        },
+        {
+          "name": "Tool: query_library",
+          "duration": 0.0271
+        },
+        {
+          "name": "TTFT (Graph)",
+          "duration": 2.9553
         },
         {
           "name": "LLM Call #2",
-          "duration": 38.0061
+          "duration": 5.3844
         },
         {
           "name": "Total Tool Execution",
-          "duration": 0.0055,
-          "tool_count": 1
+          "duration": 0.033,
+          "tool_count": 2
         },
         {
           "name": "Estimated LLM Time",
-          "duration": 46.0347
+          "duration": 7.7219
         },
         {
           "name": "Total Graph Duration",
-          "duration": 46.0402
+          "duration": 7.7549
         },
         {
           "name": "Total Request Duration",
-          "duration": 46.0489
+          "duration": 7.7645
         }
       ],
       "success": true,
@@ -93,83 +105,58 @@
       "scenario_name": "SQL Library",
       "category": "sql",
       "client_metrics": {
-        "ttft_seconds": 8.693,
-        "tps": 6.7,
-        "total_duration_seconds": 22.65,
-        "total_tokens": 94,
-        "response_length_chars": 485
+        "ttft_seconds": 0.194,
+        "tps": 115.4,
+        "total_duration_seconds": 0.22,
+        "total_tokens": 3,
+        "response_length_chars": 190
       },
       "backend_metrics": {
-        "fastapi_ttft_seconds": 8.4696,
-        "backend_ttft_seconds": 20.9396,
-        "first_llm_call_seconds": 0.0044,
-        "llm_thinking_seconds": 0.7954,
-        "total_tool_time_seconds": 0.0051,
-        "estimated_llm_time_seconds": 22.3987,
-        "total_graph_duration_seconds": 22.4038,
-        "total_request_duration_seconds": 22.4261
+        "fastapi_ttft_seconds": 0.0005,
+        "backend_ttft_seconds": 0.0,
+        "first_llm_call_seconds": 0.0,
+        "llm_thinking_seconds": 0.0,
+        "total_tool_time_seconds": 0.0046,
+        "estimated_llm_time_seconds": 0.0079,
+        "total_graph_duration_seconds": 0.0124,
+        "total_request_duration_seconds": 0.0219
       },
       "tool_calls": [
         {
-          "name": "sql_query",
-          "duration": 0.0051
+          "name": "query_library",
+          "duration": 0.0046
         }
       ],
-      "llm_calls": [
-        {
-          "name": "LLM Call #1",
-          "duration": 8.452
-        },
-        {
-          "name": "LLM Call #2",
-          "duration": 13.9216
-        }
-      ],
+      "llm_calls": [],
       "perf_timeline": [
         {
-          "name": "Request -> First LLM Call",
+          "name": "FastAPI TTFT",
+          "duration": 0.0005
+        },
+        {
+          "name": "Graph Start -> First Tool Call",
           "duration": 0.0044
         },
         {
-          "name": "LLM Call #1",
-          "duration": 8.452
-        },
-        {
-          "name": "LLM Thinking Before Tool Call",
-          "duration": 0.7954
-        },
-        {
-          "name": "FastAPI TTFT",
-          "duration": 8.4696
-        },
-        {
-          "name": "Tool: sql_query",
-          "duration": 0.0051
-        },
-        {
-          "name": "TTFT (Graph)",
-          "duration": 20.9396
-        },
-        {
-          "name": "LLM Call #2",
-          "duration": 13.9216
+          "name": "Tool: query_library",
+          "duration": 0.0046
         },
         {
           "name": "Total Tool Execution",
-          "duration": 0.0051,
+          "duration": 0.0046,
           "tool_count": 1
         },
         {
           "name": "Estimated LLM Time",
-          "duration": 22.3987
+          "duration": 0.0079
         },
         {
           "name": "Total Graph Duration",
-          "duration": 22.4038
+          "duration": 0.0124
         },
         {
           "name": "Total Request Duration",
-          "duration": 22.4261
+          "duration": 0.0219
         }
       ],
       "success": true,
@@ -181,83 +168,83 @@
       "scenario_name": "Raw SQL",
       "category": "sql",
       "client_metrics": {
-        "ttft_seconds": 13.579,
-        "tps": 24.8,
-        "total_duration_seconds": 28.908,
-        "total_tokens": 380,
-        "response_length_chars": 1465
+        "ttft_seconds": 0.197,
+        "tps": 39.7,
+        "total_duration_seconds": 5.761,
+        "total_tokens": 221,
+        "response_length_chars": 1211
       },
       "backend_metrics": {
-        "fastapi_ttft_seconds": 13.3314,
-        "backend_ttft_seconds": 22.7517,
-        "first_llm_call_seconds": 0.0048,
-        "llm_thinking_seconds": 1.9303,
-        "total_tool_time_seconds": 0.0043,
-        "estimated_llm_time_seconds": 28.6461,
-        "total_graph_duration_seconds": 28.6504,
-        "total_request_duration_seconds": 28.6589
+        "fastapi_ttft_seconds": 0.0006,
+        "backend_ttft_seconds": 2.6185,
+        "first_llm_call_seconds": 0.0054,
+        "llm_thinking_seconds": 1.1744,
+        "total_tool_time_seconds": 0.0057,
+        "estimated_llm_time_seconds": 5.5452,
+        "total_graph_duration_seconds": 5.5509,
+        "total_request_duration_seconds": 5.5605
       },
       "tool_calls": [
         {
           "name": "sql_query",
-          "duration": 0.0043
+          "duration": 0.0057
         }
       ],
       "llm_calls": [
         {
           "name": "LLM Call #1",
-          "duration": 13.311
+          "duration": 1.8957
         },
         {
           "name": "LLM Call #2",
-          "duration": 15.2987
+          "duration": 3.6192
         }
       ],
       "perf_timeline": [
         {
+          "name": "FastAPI TTFT",
+          "duration": 0.0006
+        },
+        {
           "name": "Request -> First LLM Call",
-          "duration": 0.0048
+          "duration": 0.0054
         },
         {
           "name": "LLM Call #1",
-          "duration": 13.311
+          "duration": 1.8957
         },
         {
           "name": "LLM Thinking Before Tool Call",
-          "duration": 1.9303
-        },
-        {
-          "name": "FastAPI TTFT",
-          "duration": 13.3314
+          "duration": 1.1744
         },
         {
           "name": "Tool: sql_query",
-          "duration": 0.0043
+          "duration": 0.0057
         },
         {
           "name": "TTFT (Graph)",
-          "duration": 22.7517
+          "duration": 2.6185
         },
         {
           "name": "LLM Call #2",
-          "duration": 15.2987
+          "duration": 3.6192
         },
         {
           "name": "Total Tool Execution",
-          "duration": 0.0043,
+          "duration": 0.0057,
           "tool_count": 1
         },
         {
           "name": "Estimated LLM Time",
-          "duration": 28.6461
+          "duration": 5.5452
         },
         {
           "name": "Total Graph Duration",
-          "duration": 28.6504
+          "duration": 5.5509
         },
         {
           "name": "Total Request Duration",
-          "duration": 28.6589
+          "duration": 5.5605
         }
       ],
       "success": true,
@@ -269,99 +256,83 @@
       "scenario_name": "RAG",
       "category": "rag",
       "client_metrics": {
-        "ttft_seconds": 2.229,
-        "tps": 11.5,
-        "total_duration_seconds": 19.52,
-        "total_tokens": 199,
-        "response_length_chars": 983
+        "ttft_seconds": 0.191,
+        "tps": 16.5,
+        "total_duration_seconds": 6.933,
+        "total_tokens": 111,
+        "response_length_chars": 612
       },
       "backend_metrics": {
-        "fastapi_ttft_seconds": 2.0157,
-        "backend_ttft_seconds": 16.9259,
-        "first_llm_call_seconds": 0.0051,
-        "llm_thinking_seconds": 0.1975,
-        "total_tool_time_seconds": 2.0706,
-        "estimated_llm_time_seconds": 17.2167,
-        "total_graph_duration_seconds": 19.2873,
-        "total_request_duration_seconds": 19.3064
+        "fastapi_ttft_seconds": 0.0005,
+        "backend_ttft_seconds": 5.0213,
+        "first_llm_call_seconds": 0.0054,
+        "llm_thinking_seconds": 0.1627,
+        "total_tool_time_seconds": 2.8,
+        "estimated_llm_time_seconds": 3.9163,
+        "total_graph_duration_seconds": 6.7163,
+        "total_request_duration_seconds": 6.7374
       },
       "tool_calls": [
         {
           "name": "rag_search",
-          "duration": 1.7522
-        },
-        {
-          "name": "rag_search",
-          "duration": 0.3184
+          "duration": 2.8
         }
       ],
       "llm_calls": [
         {
           "name": "LLM Call #1",
-          "duration": 1.9889
+          "duration": 1.2724
         },
         {
           "name": "LLM Call #2",
-          "duration": 3.1833
-        },
-        {
-          "name": "LLM Call #3",
-          "duration": 11.9942
+          "duration": 2.6057
         }
       ],
       "perf_timeline": [
         {
+          "name": "FastAPI TTFT",
+          "duration": 0.0005
+        },
+        {
           "name": "Request -> First LLM Call",
-          "duration": 0.0051
+          "duration": 0.0054
         },
         {
           "name": "LLM Call #1",
-          "duration": 1.9889
+          "duration": 1.2724
         },
         {
           "name": "LLM Thinking Before Tool Call",
-          "duration": 0.1975
-        },
-        {
-          "name": "FastAPI TTFT",
-          "duration": 2.0157
+          "duration": 0.1627
         },
         {
           "name": "Tool: rag_search",
-          "duration": 1.7522
-        },
-        {
-          "name": "LLM Call #2",
-          "duration": 3.1833
-        },
-        {
-          "name": "Tool: rag_search",
-          "duration": 0.3184
+          "duration": 2.8
         },
         {
           "name": "TTFT (Graph)",
-          "duration": 16.9259
+          "duration": 5.0213
         },
         {
-          "name": "LLM Call #3",
-          "duration": 11.9942
+          "name": "LLM Call #2",
+          "duration": 2.6057
         },
         {
           "name": "Total Tool Execution",
-          "duration": 2.0706,
-          "tool_count": 2
+          "duration": 2.8,
+          "tool_count": 1
         },
         {
           "name": "Estimated LLM Time",
-          "duration": 17.2167
+          "duration": 3.9163
         },
         {
           "name": "Total Graph Duration",
-          "duration": 19.2873
+          "duration": 6.7163
         },
         {
           "name": "Total Request Duration",
-          "duration": 19.3064
+          "duration": 6.7374
         }
       ],
       "success": true,
@@ -373,115 +344,91 @@
       "scenario_name": "Web Search",
       "category": "web",
       "client_metrics": {
-        "ttft_seconds": 4.39,
-        "tps": 13.8,
-        "total_duration_seconds": 47.217,
-        "total_tokens": 592,
-        "response_length_chars": 2356
+        "ttft_seconds": 0.202,
+        "tps": 52.6,
+        "total_duration_seconds": 9.709,
+        "total_tokens": 500,
+        "response_length_chars": 2078
       },
       "backend_metrics": {
-        "fastapi_ttft_seconds": 4.1358,
-        "backend_ttft_seconds": 38.34,
-        "first_llm_call_seconds": 0.0043,
-        "llm_thinking_seconds": 0.4842,
-        "total_tool_time_seconds": 4.5243,
-        "estimated_llm_time_seconds": 42.4198,
-        "total_graph_duration_seconds": 46.9441,
-        "total_request_duration_seconds": 46.9624
+        "fastapi_ttft_seconds": 0.0005,
+        "backend_ttft_seconds": 2.2967,
+        "first_llm_call_seconds": 0.0048,
+        "llm_thinking_seconds": 0.1296,
+        "total_tool_time_seconds": 0.0095,
+        "estimated_llm_time_seconds": 9.4717,
+        "total_graph_duration_seconds": 9.4811,
+        "total_request_duration_seconds": 9.5031
       },
       "tool_calls": [
         {
-          "name": "web_search",
-          "duration": 2.1312
+          "name": "query_library",
+          "duration": 0.0027
         },
         {
-          "name": "web_search",
-          "duration": 0.7275
-        },
-        {
-          "name": "web_search",
-          "duration": 0.8123
-        },
-        {
-          "name": "web_search",
-          "duration": 0.8533
+          "name": "query_library",
+          "duration": 0.0068
         }
       ],
       "llm_calls": [
         {
           "name": "LLM Call #1",
-          "duration": 4.1227
+          "duration": 1.6924
         },
         {
           "name": "LLM Call #2",
-          "duration": 14.0591
-        },
-        {
-          "name": "LLM Call #3",
-          "duration": 25.7371
+          "duration": 7.7559
         }
       ],
       "perf_timeline": [
         {
+          "name": "FastAPI TTFT",
+          "duration": 0.0005
+        },
+        {
           "name": "Request -> First LLM Call",
-          "duration": 0.0043
+          "duration": 0.0048
         },
         {
           "name": "LLM Call #1",
-          "duration": 4.1227
+          "duration": 1.6924
         },
         {
           "name": "LLM Thinking Before Tool Call",
-          "duration": 0.4842
+          "duration": 0.1296
         },
         {
-          "name": "FastAPI TTFT",
-          "duration": 4.1358
+          "name": "Tool: query_library",
+          "duration": 0.0027
         },
         {
-          "name": "Tool: web_search",
-          "duration": 2.1312
-        },
-        {
-          "name": "LLM Call #2",
-          "duration": 14.0591
-        },
-        {
-          "name": "Tool: web_search",
-          "duration": 0.7275
-        },
-        {
-          "name": "Tool: web_search",
-          "duration": 0.8123
-        },
-        {
-          "name": "Tool: web_search",
-          "duration": 0.8533
+          "name": "Tool: query_library",
+          "duration": 0.0068
         },
         {
           "name": "TTFT (Graph)",
-          "duration": 38.34
+          "duration": 2.2967
         },
         {
-          "name": "LLM Call #3",
-          "duration": 25.7371
+          "name": "LLM Call #2",
+          "duration": 7.7559
         },
         {
           "name": "Total Tool Execution",
-          "duration": 4.5243,
-          "tool_count": 4
+          "duration": 0.0095,
+          "tool_count": 2
         },
         {
           "name": "Estimated LLM Time",
-          "duration": 42.4198
+          "duration": 9.4717
         },
         {
           "name": "Total Graph Duration",
-          "duration": 46.9441
+          "duration": 9.4811
         },
         {
           "name": "Total Request Duration",
-          "duration": 46.9624
+          "duration": 9.5031
         }
       ],
       "success": true,
@@ -493,115 +440,107 @@
       "scenario_name": "Python/Chart",
       "category": "chart",
       "client_metrics": {
-        "ttft_seconds": 26.433,
-        "tps": 2.1,
-        "total_duration_seconds": 67.289,
-        "total_tokens": 85,
-        "response_length_chars": 459
+        "ttft_seconds": 0.2,
+        "tps": 6.9,
+        "total_duration_seconds": 13.991,
+        "total_tokens": 95,
+        "response_length_chars": 447
       },
       "backend_metrics": {
-        "fastapi_ttft_seconds": 26.2298,
-        "backend_ttft_seconds": 65.8304,
-        "first_llm_call_seconds": 0.004,
-        "llm_thinking_seconds": 0.2083,
-        "total_tool_time_seconds": 1.9301,
-        "estimated_llm_time_seconds": 65.1371,
-        "total_graph_duration_seconds": 67.0672,
-        "total_request_duration_seconds": 67.0857
+        "fastapi_ttft_seconds": 0.0005,
+        "backend_ttft_seconds": 12.1008,
+        "first_llm_call_seconds": 0.0049,
+        "llm_thinking_seconds": 0.0274,
+        "total_tool_time_seconds": 5.3917,
+        "estimated_llm_time_seconds": 8.3853,
+        "total_graph_duration_seconds": 13.777,
+        "total_request_duration_seconds": 13.7874
       },
       "tool_calls": [
         {
           "name": "query_library",
-          "duration": 0.0075
+          "duration": 0.0072
+        },
+        {
+          "name": "query_library",
+          "duration": 0.0186
         },
         {
           "name": "python_executor",
-          "duration": 0.9936
-        },
-        {
-          "name": "python_executor",
-          "duration": 0.9291
+          "duration": 5.3659
         }
       ],
       "llm_calls": [
         {
           "name": "LLM Call #1",
-          "duration": 26.2115
+          "duration": 1.5262
         },
         {
           "name": "LLM Call #2",
-          "duration": 29.4178
+          "duration": 4.3704
         },
         {
           "name": "LLM Call #3",
-          "duration": 7.239
-        },
-        {
-          "name": "LLM Call #4",
-          "duration": 2.1266
+          "duration": 2.4443
         }
       ],
       "perf_timeline": [
         {
+          "name": "FastAPI TTFT",
+          "duration": 0.0005
+        },
+        {
           "name": "Request -> First LLM Call",
-          "duration": 0.004
+          "duration": 0.0049
         },
         {
           "name": "LLM Call #1",
-          "duration": 26.2115
+          "duration": 1.5262
         },
         {
           "name": "LLM Thinking Before Tool Call",
-          "duration": 0.2083
-        },
-        {
-          "name": "FastAPI TTFT",
-          "duration": 26.2298
+          "duration": 0.0274
         },
         {
           "name": "Tool: query_library",
-          "duration": 0.0075
+          "duration": 0.0072
+        },
+        {
+          "name": "Tool: query_library",
+          "duration": 0.0186
         },
         {
           "name": "LLM Call #2",
-          "duration": 29.4178
+          "duration": 4.3704
         },
         {
           "name": "Tool: python_executor",
-          "duration": 0.9936
-        },
-        {
-          "name": "LLM Call #3",
-          "duration": 7.239
-        },
-        {
-          "name": "Tool: python_executor",
-          "duration": 0.9291
+          "duration": 5.3659
         },
         {
           "name": "TTFT (Graph)",
-          "duration": 65.8304
+          "duration": 12.1008
         },
         {
-          "name": "LLM Call #4",
-          "duration": 2.1266
+          "name": "LLM Call #3",
+          "duration": 2.4443
         },
         {
           "name": "Total Tool Execution",
-          "duration": 1.9301,
+          "duration": 5.3917,
           "tool_count": 3
         },
         {
           "name": "Estimated LLM Time",
-          "duration": 65.1371
+          "duration": 8.3853
         },
         {
           "name": "Total Graph Duration",
-          "duration": 67.0672
+          "duration": 13.777
         },
         {
           "name": "Total Request Duration",
-          "duration": 67.0857
+          "duration": 13.7874
         }
       ],
       "success": true,
@@ -613,115 +552,91 @@
       "scenario_name": "Multi-Tool (SQL + Web)",
       "category": "multi",
       "client_metrics": {
-        "ttft_seconds": 20.761,
-        "tps": 12.6,
-        "total_duration_seconds": 72.833,
-        "total_tokens": 656,
-        "response_length_chars": 2872
+        "ttft_seconds": 0.187,
+        "tps": 47.1,
+        "total_duration_seconds": 7.899,
+        "total_tokens": 363,
+        "response_length_chars": 1641
       },
       "backend_metrics": {
-        "fastapi_ttft_seconds": 20.5596,
-        "backend_ttft_seconds": 62.7773,
-        "first_llm_call_seconds": 0.0056,
-        "llm_thinking_seconds": 0.1745,
-        "total_tool_time_seconds": 2.3415,
-        "estimated_llm_time_seconds": 70.2808,
-        "total_graph_duration_seconds": 72.6223,
-        "total_request_duration_seconds": 72.6317
+        "fastapi_ttft_seconds": 0.0005,
+        "backend_ttft_seconds": 2.4449,
+        "first_llm_call_seconds": 0.0051,
+        "llm_thinking_seconds": 0.0148,
+        "total_tool_time_seconds": 0.0097,
+        "estimated_llm_time_seconds": 7.6889,
+        "total_graph_duration_seconds": 7.6986,
+        "total_request_duration_seconds": 7.7085
       },
       "tool_calls": [
         {
           "name": "query_library",
-          "duration": 0.0046
+          "duration": 0.002
         },
         {
           "name": "query_library",
-          "duration": 0.0154
-        },
-        {
-          "name": "sql_query",
-          "duration": 0.0041
-        },
-        {
-          "name": "web_search",
-          "duration": 2.3174
+          "duration": 0.0076
         }
       ],
       "llm_calls": [
         {
           "name": "LLM Call #1",
-          "duration": 20.5452
+          "duration": 1.5916
         },
         {
           "name": "LLM Call #2",
-          "duration": 13.3012
-        },
-        {
-          "name": "LLM Call #3",
-          "duration": 36.4026
+          "duration": 6.0726
         }
       ],
       "perf_timeline": [
         {
+          "name": "FastAPI TTFT",
+          "duration": 0.0005
+        },
+        {
           "name": "Request -> First LLM Call",
-          "duration": 0.0056
+          "duration": 0.0051
         },
         {
           "name": "LLM Call #1",
-          "duration": 20.5452
+          "duration": 1.5916
         },
         {
           "name": "LLM Thinking Before Tool Call",
-          "duration": 0.1745
-        },
-        {
-          "name": "FastAPI TTFT",
-          "duration": 20.5596
+          "duration": 0.0148
         },
         {
           "name": "Tool: query_library",
-          "duration": 0.0046
+          "duration": 0.002
         },
         {
           "name": "Tool: query_library",
-          "duration": 0.0154
-        },
-        {
-          "name": "LLM Call #2",
-          "duration": 13.3012
-        },
-        {
-          "name": "Tool: sql_query",
-          "duration": 0.0041
-        },
-        {
-          "name": "Tool: web_search",
-          "duration": 2.3174
+          "duration": 0.0076
         },
         {
           "name": "TTFT (Graph)",
-          "duration": 62.7773
+          "duration": 2.4449
         },
         {
-          "name": "LLM Call #3",
-          "duration": 36.4026
+          "name": "LLM Call #2",
+          "duration": 6.0726
         },
         {
           "name": "Total Tool Execution",
-          "duration": 2.3415,
-          "tool_count": 4
+          "duration": 0.0097,
+          "tool_count": 2
         },
         {
           "name": "Estimated LLM Time",
-          "duration": 70.2808
+          "duration": 7.6889
         },
         {
           "name": "Total Graph Duration",
-          "duration": 72.6223
+          "duration": 7.6986
         },
         {
           "name": "Total Request Duration",
-          "duration": 72.6317
+          "duration": 7.7085
         }
       ],
       "success": true,
@@ -733,99 +648,91 @@
       "scenario_name": "Multi-Tool (SQL + RAG)",
       "category": "multi",
       "client_metrics": {
-        "ttft_seconds": 7.93,
-        "tps": 15.3,
-        "total_duration_seconds": 48.949,
-        "total_tokens": 628,
-        "response_length_chars": 2228
+        "ttft_seconds": 0.186,
+        "tps": 52.5,
+        "total_duration_seconds": 7.888,
+        "total_tokens": 404,
+        "response_length_chars": 1773
       },
       "backend_metrics": {
-        "fastapi_ttft_seconds": 7.7255,
-        "backend_ttft_seconds": 38.9037,
-        "first_llm_call_seconds": 0.0037,
-        "llm_thinking_seconds": 0.1767,
-        "total_tool_time_seconds": 0.6828,
-        "estimated_llm_time_seconds": 48.0416,
-        "total_graph_duration_seconds": 48.7244,
-        "total_request_duration_seconds": 48.7441
+        "fastapi_ttft_seconds": 0.0006,
+        "backend_ttft_seconds": 3.104,
+        "first_llm_call_seconds": 0.0058,
+        "llm_thinking_seconds": 0.0128,
+        "total_tool_time_seconds": 0.5846,
+        "estimated_llm_time_seconds": 7.1043,
+        "total_graph_duration_seconds": 7.689,
+        "total_request_duration_seconds": 7.6988
       },
       "tool_calls": [
         {
           "name": "query_library",
-          "duration": 0.0042
-        },
-        {
-          "name": "query_library",
-          "duration": 0.0093
+          "duration": 0.0013
         },
         {
           "name": "rag_search",
-          "duration": 0.6693
+          "duration": 0.5833
         }
       ],
       "llm_calls": [
         {
           "name": "LLM Call #1",
-          "duration": 7.711
+          "duration": 1.2428
         },
         {
           "name": "LLM Call #2",
-          "duration": 40.314
+          "duration": 5.8338
         }
       ],
       "perf_timeline": [
         {
+          "name": "FastAPI TTFT",
+          "duration": 0.0006
+        },
+        {
           "name": "Request -> First LLM Call",
-          "duration": 0.0037
+          "duration": 0.0058
         },
         {
           "name": "LLM Call #1",
-          "duration": 7.711
+          "duration": 1.2428
         },
         {
           "name": "LLM Thinking Before Tool Call",
-          "duration": 0.1767
-        },
-        {
-          "name": "FastAPI TTFT",
-          "duration": 7.7255
+          "duration": 0.0128
         },
         {
           "name": "Tool: query_library",
-          "duration": 0.0042
-        },
-        {
-          "name": "Tool: query_library",
-          "duration": 0.0093
+          "duration": 0.0013
         },
         {
           "name": "Tool: rag_search",
-          "duration": 0.6693
+          "duration": 0.5833
         },
         {
           "name": "TTFT (Graph)",
-          "duration": 38.9037
+          "duration": 3.104
         },
         {
           "name": "LLM Call #2",
-          "duration": 40.314
+          "duration": 5.8338
         },
         {
           "name": "Total Tool Execution",
-          "duration": 0.6828,
-          "tool_count": 3
+          "duration": 0.5846,
+          "tool_count": 2
         },
         {
           "name": "Estimated LLM Time",
-          "duration": 48.0416
+          "duration": 7.1043
         },
         {
           "name": "Total Graph Duration",
-          "duration": 48.7244
+          "duration": 7.689
         },
         {
           "name": "Total Request Duration",
-          "duration": 48.7441
+          "duration": 7.6988
         }
       ],
       "success": true,
@@ -837,91 +744,115 @@
       "scenario_name": "HITL Flow",
       "category": "hitl",
       "client_metrics": {
-        "ttft_seconds": 19.401,
-        "tps": 3.7,
-        "total_duration_seconds": 57.752,
-        "total_tokens": 140,
-        "response_length_chars": 573
+        "ttft_seconds": 0.206,
+        "tps": 55.9,
+        "total_duration_seconds": 14.38,
+        "total_tokens": 793,
+        "response_length_chars": 3029
       },
       "backend_metrics": {
-        "fastapi_ttft_seconds": 19.1359,
-        "backend_ttft_seconds": 55.505,
-        "first_llm_call_seconds": 0.0058,
-        "llm_thinking_seconds": 0.0151,
-        "total_tool_time_seconds": 0.0103,
-        "estimated_llm_time_seconds": 57.4573,
-        "total_graph_duration_seconds": 57.4676,
-        "total_request_duration_seconds": 57.4863
+        "fastapi_ttft_seconds": 0.0005,
+        "backend_ttft_seconds": 3.2836,
+        "first_llm_call_seconds": 0.0048,
+        "llm_thinking_seconds": 0.0152,
+        "total_tool_time_seconds": 0.0345,
+        "estimated_llm_time_seconds": 14.1144,
+        "total_graph_duration_seconds": 14.1489,
+        "total_request_duration_seconds": 14.171
       },
       "tool_calls": [
         {
           "name": "query_library",
-          "duration": 0.0045
+          "duration": 0.0054
         },
         {
           "name": "query_library",
-          "duration": 0.0058
+          "duration": 0.0152
+        },
+        {
+          "name": "query_library",
+          "duration": 0.0056
+        },
+        {
+          "name": "query_library",
+          "duration": 0.0083
         }
       ],
       "llm_calls": [
         {
           "name": "LLM Call #1",
-          "duration": 19.1213
+          "duration": 1.2051
         },
         {
           "name": "LLM Call #2",
-          "duration": 38.3172
+          "duration": 1.3367
+        },
+        {
+          "name": "LLM Call #3",
+          "duration": 11.544
         }
       ],
       "perf_timeline": [
         {
+          "name": "FastAPI TTFT",
+          "duration": 0.0005
+        },
+        {
           "name": "Request -> First LLM Call",
-          "duration": 0.0058
+          "duration": 0.0048
         },
         {
           "name": "LLM Call #1",
-          "duration": 19.1213
+          "duration": 1.2051
         },
         {
           "name": "LLM Thinking Before Tool Call",
-          "duration": 0.0151
-        },
-        {
-          "name": "FastAPI TTFT",
-          "duration": 19.1359
+          "duration": 0.0152
         },
         {
           "name": "Tool: query_library",
-          "duration": 0.0045
+          "duration": 0.0054
         },
         {
           "name": "Tool: query_library",
-          "duration": 0.0058
-        },
-        {
-          "name": "TTFT (Graph)",
-          "duration": 55.505
+          "duration": 0.0152
         },
         {
           "name": "LLM Call #2",
-          "duration": 38.3172
+          "duration": 1.3367
+        },
+        {
+          "name": "Tool: query_library",
+          "duration": 0.0056
+        },
+        {
+          "name": "Tool: query_library",
+          "duration": 0.0083
+        },
+        {
+          "name": "TTFT (Graph)",
+          "duration": 3.2836
+        },
+        {
+          "name": "LLM Call #3",
+          "duration": 11.544
         },
         {
           "name": "Total Tool Execution",
-          "duration": 0.0103,
-          "tool_count": 2
+          "duration": 0.0345,
+          "tool_count": 4
         },
         {
           "name": "Estimated LLM Time",
-          "duration": 57.4573
+          "duration": 14.1144
         },
         {
           "name": "Total Graph Duration",
-          "duration": 57.4676
+          "duration": 14.1489
         },
         {
           "name": "Total Request Duration",
-          "duration": 57.4863
+          "duration": 14.171
         }
       ],
       "success": true,
@@ -933,91 +864,115 @@
       "scenario_name": "Complex (SQL + Python + HITL)",
       "category": "complex",
       "client_metrics": {
-        "ttft_seconds": 9.896,
-        "tps": 8.2,
-        "total_duration_seconds": 36.936,
-        "total_tokens": 222,
-        "response_length_chars": 975
+        "ttft_seconds": 0.18,
+        "tps": 39.4,
+        "total_duration_seconds": 17.902,
+        "total_tokens": 698,
+        "response_length_chars": 2606
       },
       "backend_metrics": {
-        "fastapi_ttft_seconds": 9.6861,
-        "backend_ttft_seconds": 33.6607,
-        "first_llm_call_seconds": 0.0044,
-        "llm_thinking_seconds": 0.0323,
-        "total_tool_time_seconds": 0.0155,
-        "estimated_llm_time_seconds": 36.701,
-        "total_graph_duration_seconds": 36.7165,
-        "total_request_duration_seconds": 36.7255
+        "fastapi_ttft_seconds": 0.0005,
+        "backend_ttft_seconds": 8.9676,
+        "first_llm_call_seconds": 0.005,
+        "llm_thinking_seconds": 0.0158,
+        "total_tool_time_seconds": 0.0353,
+        "estimated_llm_time_seconds": 17.6729,
+        "total_graph_duration_seconds": 17.7083,
+        "total_request_duration_seconds": 17.7188
       },
       "tool_calls": [
         {
-          "name": "purchase_order_action",
-          "duration": 0.0063
+          "name": "query_library",
+          "duration": 0.0065
         },
         {
           "name": "query_library",
-          "duration": 0.0092
+          "duration": 0.0248
+        },
+        {
+          "name": "query_library",
+          "duration": 0.0019
+        },
+        {
+          "name": "query_library",
+          "duration": 0.0021
         }
       ],
       "llm_calls": [
         {
           "name": "LLM Call #1",
-          "duration": 9.6701
+          "duration": 4.3301
         },
         {
           "name": "LLM Call #2",
-          "duration": 27.0102
+          "duration": 3.3179
+        },
+        {
+          "name": "LLM Call #3",
+          "duration": 9.9937
         }
       ],
       "perf_timeline": [
         {
+          "name": "FastAPI TTFT",
+          "duration": 0.0005
+        },
+        {
           "name": "Request -> First LLM Call",
-          "duration": 0.0044
+          "duration": 0.005
         },
         {
           "name": "LLM Call #1",
-          "duration": 9.6701
+          "duration": 4.3301
         },
         {
           "name": "LLM Thinking Before Tool Call",
-          "duration": 0.0323
-        },
-        {
-          "name": "FastAPI TTFT",
-          "duration": 9.6861
-        },
-        {
-          "name": "Tool: purchase_order_action",
-          "duration": 0.0063
+          "duration": 0.0158
         },
         {
           "name": "Tool: query_library",
-          "duration": 0.0092
+          "duration": 0.0065
         },
         {
-          "name": "TTFT (Graph)",
-          "duration": 33.6607
+          "name": "Tool: query_library",
+          "duration": 0.0248
         },
         {
           "name": "LLM Call #2",
-          "duration": 27.0102
+          "duration": 3.3179
+        },
+        {
+          "name": "Tool: query_library",
+          "duration": 0.0019
+        },
+        {
+          "name": "Tool: query_library",
+          "duration": 0.0021
+        },
+        {
+          "name": "TTFT (Graph)",
+          "duration": 8.9676
+        },
+        {
+          "name": "LLM Call #3",
+          "duration": 9.9937
         },
         {
           "name": "Total Tool Execution",
-          "duration": 0.0155,
-          "tool_count": 2
+          "duration": 0.0353,
+          "tool_count": 4
         },
         {
           "name": "Estimated LLM Time",
-          "duration": 36.701
+          "duration": 17.6729
         },
         {
           "name": "Total Graph Duration",
-          "duration": 36.7165
+          "duration": 17.7083
         },
         {
           "name": "Total Request Duration",
-          "duration": 36.7255
+          "duration": 17.7188
         }
       ],
       "success": true,
@@ -1026,14 +981,14 @@
     }
   ],
   "aggregates": {
-    "avg_fastapi_ttft_seconds": 11.931,
+    "avg_fastapi_ttft_seconds": 0.001,
     "avg_first_llm_call_seconds": 0.005,
-    "avg_llm_thinking_seconds": 0.417,
-    "avg_total_tool_time_seconds": 1.159,
-    "avg_estimated_llm_time_seconds": 43.433,
-    "avg_total_graph_duration_seconds": 44.592,
-    "avg_client_tps": 9.9,
-    "total_benchmark_seconds": 448.311,
+    "avg_llm_thinking_seconds": 0.172,
+    "avg_total_tool_time_seconds": 0.891,
+    "avg_estimated_llm_time_seconds": 8.163,
+    "avg_total_graph_duration_seconds": 9.054,
+    "avg_client_tps": 46.6,
+    "total_benchmark_seconds": 93.064,
     "success_rate": 1.0
   }
 }

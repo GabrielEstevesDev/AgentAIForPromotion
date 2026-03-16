@@ -14,7 +14,7 @@ from langgraph.types import interrupt
 from ..config import LLM_MODEL, OPENAI_API_KEY
 from ..core.mode_templates import MODE_TEMPLATES
 from ..core.system_prompt import SYSTEM_PROMPT
-from ..mode_classifier import classify_mode
+from ..mode_classifier import classify_mode, match_direct_query
 from ..tools import ALL_TOOLS
 from ..validators import check_summary_breakdown_coherence, validate_hitl_structure
 
@@ -38,21 +38,43 @@ _STOP_TOOLS_MSG = (
 # ---------------------------------------------------------------------------
 # Shared LLM instances (built once, reused)
 # max_tokens=2500 is a ceiling — actual output length is controlled by mode instruction
+# Phase 2.1: with_retry + with_fallbacks for production resilience
 # ---------------------------------------------------------------------------
 
-_llm_with_tools = ChatOpenAI(
+_primary = ChatOpenAI(
     model=LLM_MODEL,
     temperature=0,
     timeout=60,
     max_tokens=2500,
     api_key=OPENAI_API_KEY,
-).bind_tools(ALL_TOOLS)
+)
 
-_llm_no_tools = ChatOpenAI(
-    model=LLM_MODEL,
+_fallback = ChatOpenAI(
+    model="gpt-4o-mini",
     temperature=0,
     timeout=60,
     max_tokens=2500,
+    api_key=OPENAI_API_KEY,
+)
+
+_llm_with_tools = (
+    _primary.bind_tools(ALL_TOOLS)
+    .with_fallbacks([_fallback.bind_tools(ALL_TOOLS)])
+    .with_retry(stop_after_attempt=2)
+)
+
+_llm_no_tools = (
+    _primary
+    .with_fallbacks([_fallback])
+    .with_retry(stop_after_attempt=2)
+)
+
+# Cheap model for conversation summarization (Phase 3.1)
+_llm_summarizer = ChatOpenAI(
+    model="gpt-4o-mini",
+    temperature=0,
+    timeout=30,
+    max_tokens=300,
     api_key=OPENAI_API_KEY,
 )
 
@@ -70,6 +92,64 @@ def _augment_config(config: dict, state: dict) -> dict:
     augmented["configurable"]["po_intent"] = state.get("po_intent", False)
     augmented["configurable"]["hitl_approved"] = state.get("hitl_approved", False)
     return augmented
+
+
+# ---------------------------------------------------------------------------
+# Node: summarize_if_needed (Phase 3.1 — condense long conversations)
+# ---------------------------------------------------------------------------
+
+_SUMMARIZE_THRESHOLD = 12  # messages before summarization kicks in
+_KEEP_RECENT = 6           # keep last N messages verbatim
+
+
+async def summarize_if_needed(state: dict) -> dict:
+    """Summarize older messages when conversation grows too long."""
+    from langchain_core.messages import RemoveMessage
+
+    messages = state.get("messages", [])
+    if len(messages) <= _SUMMARIZE_THRESHOLD:
+        return {}
+
+    # Split: older messages to summarize, recent to keep
+    older = messages[:-_KEEP_RECENT]
+    if not older:
+        return {}
+
+    # Build a summary of older messages
+    summary_input = []
+    for msg in older:
+        role = "User" if isinstance(msg, HumanMessage) else "Assistant"
+        content = msg.content if isinstance(msg.content, str) else str(msg.content)
+        # Truncate very long messages for the summary
+        if len(content) > 500:
+            content = content[:500] + "..."
+        summary_input.append(f"{role}: {content}")
+
+    summary_prompt = (
+        "Summarize this conversation history in 2-3 sentences. "
+        "Focus on key questions asked, data retrieved, and decisions made:\n\n"
+        + "\n".join(summary_input)
+    )
+
+    try:
+        t0 = time.perf_counter()
+        response = await _llm_summarizer.ainvoke([{"role": "user", "content": summary_prompt}])
+        dur = time.perf_counter() - t0
+        logger.info("PERF_LOG: [Conversation Summarization] - %.3fs (%d msgs -> summary)", dur, len(older))
+
+        summary_text = response.content if isinstance(response.content, str) else str(response.content)
+
+        # Remove old messages and prepend summary as SystemMessage
+        removals = [RemoveMessage(id=msg.id) for msg in older if msg.id]
+        summary_msg = SystemMessage(content=f"[Conversation summary]: {summary_text}")
+
+        return {
+            "messages": removals + [summary_msg],
+            "summary": summary_text,
+        }
+    except Exception as e:
+        logger.warning("Summarization failed, continuing with full history: %s", e)
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -92,12 +172,19 @@ def classify(state: dict) -> dict:
 
     user_text = last_human.content if isinstance(last_human.content, str) else str(last_human.content)
 
+    # Phase 1.4: Try direct query routing first (skip LLM entirely)
+    direct_query_name = match_direct_query(user_text)
+
     # Classify mode
     t0 = time.perf_counter()
     mode = classify_mode(user_text)
     classify_dur = time.perf_counter() - t0
     logger.info("PERF_LOG: [Mode Classification] - %.4fs", classify_dur)
-    logger.info("Mode: %s (max_tools=%d)", mode.name, mode.max_tool_calls)
+
+    if direct_query_name:
+        logger.info("Mode: direct_query -> %s (skipping LLM)", direct_query_name)
+    else:
+        logger.info("Mode: %s (max_tools=%d)", mode.name, mode.max_tool_calls)
 
     # Detect HITL approval
     msg_lower = user_text.lower()
@@ -114,12 +201,13 @@ def classify(state: dict) -> dict:
 
     return {
         "messages": [augmented_msg],
-        "mode": mode.name,
+        "mode": "direct_query" if direct_query_name else mode.name,
         "mode_config": {
             "max_tokens": mode.max_tokens,
             "max_tool_calls": mode.max_tool_calls,
             "mode_instruction": mode.mode_instruction,
         },
+        "direct_query_name": direct_query_name or "",
         "tool_call_count": 0,
         "po_intent": po_intent,
         "hitl_approved": is_hitl_approval,
@@ -178,6 +266,26 @@ def fast_response(state: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Node: direct_query (Phase 1.4 — skip LLM for simple factual queries)
+# ---------------------------------------------------------------------------
+
+async def direct_query(state: dict) -> dict:
+    """Execute a pre-matched query_library entry directly — no LLM call."""
+    query_name = state.get("direct_query_name", "")
+    if not query_name:
+        return {"response_text": ""}
+
+    from ..tools.query_library import query_library as _ql_tool
+    result = await _ql_tool.ainvoke({"query_name": query_name})
+
+    response_text = f"### {query_name.replace('_', ' ').title()}\n\n{result}"
+    return {
+        "messages": [AIMessage(content=response_text)],
+        "response_text": response_text,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Node: plan_and_call (Runnable chain — LLM is streamable)
 # ---------------------------------------------------------------------------
 
@@ -218,8 +326,22 @@ async def execute_tools(state: dict, config: RunnableConfig) -> dict:
     # Augment config with state values so tools can check po_intent / hitl_approved
     augmented_config = _augment_config(config, state)
 
-    # Run the tools via LangGraph's ToolNode
-    result = await _tool_node.ainvoke(state, config=augmented_config)
+    # Phase 2.3: Graceful tool degradation — catch tool errors so LLM can work around them
+    try:
+        result = await _tool_node.ainvoke(state, config=augmented_config)
+    except Exception as exc:
+        logger.warning("Tool execution failed, injecting error message: %s", exc)
+        # Find tool call IDs from the last AI message to create proper ToolMessages
+        messages = state.get("messages", [])
+        last_ai = messages[-1] if messages else None
+        error_msgs = []
+        if last_ai and hasattr(last_ai, "tool_calls"):
+            for tc in last_ai.tool_calls:
+                error_msgs.append(ToolMessage(
+                    content=f"Tool error: {exc}. Please respond with available data.",
+                    tool_call_id=tc.get("id", ""),
+                ))
+        result = {"messages": error_msgs} if error_msgs else {"messages": []}
 
     # Count tool calls from the last AI message
     messages = state["messages"]

@@ -9,6 +9,7 @@ from .edges import route_after_classify, route_after_hitl_check, route_after_pla
 from .nodes import (
     assemble_response,
     classify,
+    direct_query,
     execute_tools,
     extract_hitl,
     fast_response,
@@ -16,6 +17,7 @@ from .nodes import (
     hitl_gate,
     plan_and_call,
     post_approve,
+    summarize_if_needed,
     validate,
 )
 from .state import AriaState
@@ -27,8 +29,9 @@ def build_graph():
     """Build and compile the Aria StateGraph with MemorySaver checkpointer.
 
     Graph topology:
-        START → classify ─┬─ (greeting) → fast_response → END
-                          └─ (other)    → plan_and_call
+        START → summarize_if_needed → classify ─┬─ (greeting)      → fast_response → END
+                                                 ├─ (direct_query)  → direct_query → END
+                                                 └─ (other)         → plan_and_call
                             ├─ (tool_calls) → execute_tools → route_after_tools
                             │                                   ├─ (under limit) → plan_and_call
                             │                                   └─ (at limit)    → force_respond → extract_hitl
@@ -39,8 +42,10 @@ def build_graph():
     graph = StateGraph(AriaState)
 
     # Add nodes
+    graph.add_node("summarize_if_needed", summarize_if_needed)
     graph.add_node("classify", classify)
     graph.add_node("fast_response", fast_response)
+    graph.add_node("direct_query", direct_query)
     graph.add_node("plan_and_call", plan_and_call)
     graph.add_node("execute_tools", execute_tools)
     graph.add_node("force_respond", force_respond)
@@ -50,13 +55,16 @@ def build_graph():
     graph.add_node("assemble_response", assemble_response)
     graph.add_node("validate", validate)
 
-    # Edges
-    graph.add_edge(START, "classify")
+    # Edges — Phase 3.1: summarize first, then classify
+    graph.add_edge(START, "summarize_if_needed")
+    graph.add_edge("summarize_if_needed", "classify")
     graph.add_conditional_edges("classify", route_after_classify, {
         "fast_response": "fast_response",
+        "direct_query": "direct_query",
         "plan_and_call": "plan_and_call",
     })
     graph.add_edge("fast_response", END)
+    graph.add_edge("direct_query", END)
 
     # After plan_and_call: tool calls → execute, text → extract_hitl
     graph.add_conditional_edges("plan_and_call", route_after_plan, {

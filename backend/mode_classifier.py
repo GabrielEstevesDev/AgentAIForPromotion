@@ -49,6 +49,33 @@ _ANALYTICAL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# ── Direct query routing (Phase 1.4) — skip LLM for simple factual queries ──
+_DIRECT_ROUTES: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"total\s+revenue", re.IGNORECASE), "total_revenue"),
+    (re.compile(r"revenue\s+by\s+month", re.IGNORECASE), "revenue_by_month"),
+    (re.compile(r"revenue\s+by\s+category", re.IGNORECASE), "revenue_by_category"),
+    (re.compile(r"low\s+stock", re.IGNORECASE), "low_stock"),
+    (re.compile(r"out\s+of\s+stock", re.IGNORECASE), "out_of_stock"),
+    (re.compile(r"top\s+products?(\s+by\s+revenue)?", re.IGNORECASE), "top_products_by_revenue"),
+    (re.compile(r"top\s+products?\s+by\s+quantity", re.IGNORECASE), "top_products_by_quantity"),
+    (re.compile(r"top\s+rated\s+products?", re.IGNORECASE), "top_rated_products"),
+    (re.compile(r"recent\s+orders?", re.IGNORECASE), "recent_orders"),
+    (re.compile(r"pending\s+orders?", re.IGNORECASE), "pending_orders"),
+    (re.compile(r"orders?\s+by\s+status", re.IGNORECASE), "orders_by_status"),
+    (re.compile(r"orders?\s+today", re.IGNORECASE), "orders_today"),
+    (re.compile(r"top\s+customers?", re.IGNORECASE), "top_customers_by_spend"),
+    (re.compile(r"customer\s+count|how\s+many\s+customers?", re.IGNORECASE), "customer_count"),
+    (re.compile(r"inventory\s+overview", re.IGNORECASE), "inventory_overview"),
+    (re.compile(r"rating\s+distribution", re.IGNORECASE), "rating_distribution"),
+    (re.compile(r"stockout\s+risk", re.IGNORECASE), "stockout_risk"),
+    (re.compile(r"worst\s+rated", re.IGNORECASE), "worst_rated_products"),
+    (re.compile(r"new\s+customers?\s+this\s+month", re.IGNORECASE), "new_customers_this_month"),
+    (re.compile(r"sales?\s+last\s+30\s*d", re.IGNORECASE), "sales_last_30d"),
+    (re.compile(r"sales?\s+last\s+7\s*d", re.IGNORECASE), "sales_last_7d"),
+    (re.compile(r"customer\s+segments?", re.IGNORECASE), "customer_segments"),
+    (re.compile(r"api\s+usage", re.IGNORECASE), "api_usage_summary"),
+]
+
 
 @dataclass(frozen=True)
 class ResponseMode:
@@ -70,19 +97,21 @@ MODES = {
     "factual": ResponseMode(
         name="factual",
         max_tokens=600,
-        max_tool_calls=3,
+        max_tool_calls=2,
         mode_instruction=(
             "[MODE: FACTUAL] Max 200 words. Summary + table + 1-sentence takeaway. "
-            "No recommended actions unless data is surprising. No filler."
+            "No recommended actions unless data is surprising. No filler. "
+            "ALWAYS call all needed tools in a SINGLE response — never one at a time."
         ),
     ),
     "analytical": ResponseMode(
         name="analytical",
         max_tokens=1000,
-        max_tool_calls=3,
+        max_tool_calls=2,
         mode_instruction=(
-            "[MODE: ANALYTICAL] Max 400 words. Call multiple tools in parallel when data needs "
-            "are independent. Summary + breakdown table + key takeaway "
+            "[MODE: ANALYTICAL] Max 400 words. CRITICAL: In your FIRST response, call all needed "
+            "tools simultaneously (e.g., query_library + sql_query in parallel). Do NOT call "
+            "tools one at a time. Summary + breakdown table + key takeaway "
             "+ 2-3 recommended actions. Every recommendation must cite a specific product "
             "or dollar amount."
         ),
@@ -90,19 +119,21 @@ MODES = {
     "chart": ResponseMode(
         name="chart",
         max_tokens=800,
-        max_tool_calls=4,
+        max_tool_calls=3,
         mode_instruction=(
             "[MODE: CHART] Max 150 words of text (excluding chart). Context line + chart "
-            "+ exactly 1 INSIGHT line + exactly 1 ACTION line. No other commentary."
+            "+ exactly 1 INSIGHT line + exactly 1 ACTION line. No other commentary. "
+            "Call data query + python_executor together when possible."
         ),
     ),
     "hitl": ResponseMode(
         name="hitl",
         max_tokens=2000,
-        max_tool_calls=5,
+        max_tool_calls=3,
         mode_instruction=(
-            "[MODE: HITL] CRITICAL: Use at most 2 tool calls for data — call both in parallel. "
-            "Then IMMEDIATELY output the HITL_REQUEST JSON block. "
+            "[MODE: HITL] CRITICAL: In your FIRST response, call exactly 2 tools simultaneously "
+            "(e.g., query_library + rag_search). Do NOT call tools one at a time across multiple "
+            "turns. Then IMMEDIATELY output the HITL_REQUEST JSON block. "
             "Do NOT write preamble text before the JSON. "
             "Go straight to the ```json HITL_REQUEST block. No charts before approval. "
             "Keep artifacts_preview compact — use tables, not paragraphs."
@@ -120,15 +151,36 @@ MODES = {
     "prospecting": ResponseMode(
         name="prospecting",
         max_tokens=1200,
-        max_tool_calls=3,
+        max_tool_calls=2,
         mode_instruction=(
             "[MODE: PROSPECTING] Max 500 words. Lead with the business pain, not the technology. "
             "Every paragraph must contain a number or specific product/workflow reference. "
             "Run at least one live query as proof. End with a question for the prospect. "
-            "Output must fit on one slide — use tables and bullets, not paragraphs."
+            "Output must fit on one slide — use tables and bullets, not paragraphs. "
+            "ALWAYS call all needed tools in a SINGLE response."
         ),
     ),
 }
+
+
+def match_direct_query(message: str) -> str | None:
+    """Try to match a user message to a direct query_library entry.
+
+    Returns the query_name if matched, None otherwise.
+    Only matches simple, short messages (< 80 chars, no complex connectors).
+    """
+    stripped = message.strip()
+    # Only route short, simple questions — complex ones need LLM reasoning
+    if len(stripped) > 80:
+        return None
+    # Skip if the message contains complex connectors suggesting multi-step reasoning
+    if re.search(r"\b(and|but|then|also|compare|versus|vs)\b", stripped, re.IGNORECASE):
+        return None
+
+    for pattern, query_name in _DIRECT_ROUTES:
+        if pattern.search(stripped):
+            return query_name
+    return None
 
 
 def classify_mode(message: str) -> ResponseMode:

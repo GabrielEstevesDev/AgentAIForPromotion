@@ -117,6 +117,10 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
     else:
         input_value = {"messages": [HumanMessage(content=message)]}
 
+    # Phase 1.1: Immediate status message for perceived <500ms TTFT
+    if not is_hitl_resume:
+        yield "\u2728 Analyzing your request...\n\n"
+
     # SQL queries captured from tool calls — injected before the first response token
     pending_sqls: list[str] = []
     sql_injected = False

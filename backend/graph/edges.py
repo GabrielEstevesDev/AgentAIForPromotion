@@ -8,9 +8,11 @@ logger = logging.getLogger(__name__)
 
 
 def route_after_classify(state: dict) -> str:
-    """After classify: fast_response for greetings, plan_and_call otherwise."""
+    """After classify: fast_response for greetings, direct_query for simple lookups, plan_and_call otherwise."""
     if state.get("mode") == "greeting":
         return "fast_response"
+    if state.get("mode") == "direct_query" and state.get("direct_query_name"):
+        return "direct_query"
     return "plan_and_call"
 
 

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Aria** is a full-stack AI-powered e-commerce assistant designed as a demo-ready product for potential clients. It consists of:
 
 - **Frontend**: Next.js 15 (App Router) with React 19, Tailwind CSS 4, and the Vercel AI SDK (`useChat` hook). Runs on port **3000**.
-- **Backend**: FastAPI with SSE streaming, wrapping an **explicit LangGraph StateGraph agent** backed by `gpt-5-mini`. Runs on port **8001**.
+- **Backend**: FastAPI with SSE streaming, wrapping an **explicit LangGraph StateGraph agent** backed by `gpt-4o-mini`. Runs on port **8001**.
 
 The agent answers questions about a SQLite e-commerce database, an internal knowledge base (RAG via ChromaDB), and the live web (via Tavily). It supports an **Approval (HITL)** workflow for high-risk actions (refunds, promotions, purchase orders). Conversations and messages are persisted in SQLite via direct SQL (not Prisma at runtime).
 
@@ -92,21 +92,21 @@ root/
       parsers.ts              — JSON block extraction (USE_CASE_CARDS, HITL_REQUEST)
 
   backend/                    — FastAPI backend (Python)
-    main.py                   — FastAPI app, CORS, lifespan (builds agent)
+    main.py                   — FastAPI app, CORS, lifespan (builds agent), structlog configuration, RequestIdMiddleware
     agent.py                  — Thin facade: delegates to graph/ (StateGraph) or agent_legacy.py based on USE_LEGACY_AGENT flag
     agent_legacy.py           — Legacy create_react_agent implementation (fallback, USE_LEGACY_AGENT=True)
-    mode_classifier.py        — Response-mode classifier (factual/analytical/chart/hitl/rag/prospecting) — sets max_tokens + tool budget per request
+    mode_classifier.py        — Response-mode classifier (greeting/direct_query/factual/analytical/chart/hitl/rag/prospecting) — sets max_tokens + tool budget per request; includes direct query routing (23 pattern→query mappings)
     validators.py             — Programmatic post-processing: summary/breakdown coherence check, HITL structure validation, response length monitoring
     config.py                 — All settings (LLM_MODEL, DB_PATH, CHARTS_DIR, USE_LEGACY_AGENT, etc.)
     db.py                     — SQLite connection with dict_factory, WAL mode, 30s timeout
     hitl_state.py             — Per-thread approval tracking + PO intent tracking (legacy only, used by agent_legacy.py)
     graph/                    — Explicit StateGraph agent (replaces black-box ReAct loop)
       __init__.py             — Exports build_graph() and stream_graph()
-      state.py                — AriaState TypedDict (messages, mode, tool_call_count, captured_sqls, HITL fields, po_intent)
-      nodes.py                — Node functions and Runnable chains: classify, execute_tools, extract_hitl, hitl_gate, assemble_response, validate (functions); plan_and_call, force_respond, post_approve (Runnable chains for LLM streaming)
+      state.py                — AriaState TypedDict (messages, mode, tool_call_count, captured_sqls, HITL fields, po_intent, summary)
+      nodes.py                — Node functions and Runnable chains: summarize_if_needed, classify, fast_response, direct_query, execute_tools, extract_hitl, hitl_gate, assemble_response, validate (functions); plan_and_call, force_respond, post_approve (Runnable chains for LLM streaming). LLM instances use .with_fallbacks() and .with_retry(stop_after_attempt=2).
       edges.py                — Conditional routing: route_after_plan, route_after_tools, route_after_hitl_check
       builder.py              — build_graph() assembles and compiles the StateGraph with MemorySaver
-      stream.py               — stream_graph() SSE streaming with heartbeat, timeout, SQL injection, HITL resume via Command(resume=...)
+      stream.py               — stream_graph() SSE streaming with heartbeat, timeout, SQL injection, HITL resume via Command(resume=...), performance event tracking (PERF: markers), tool status emoji messages
     core/
       system_prompt.py        — Core system prompt (~500 tokens): identity, 6 rules, output discipline, self-check. Templates and schema moved to mode_templates.py and tool docstrings.
       mode_templates.py       — Per-mode instruction templates (factual/analytical/chart/hitl/rag/prospecting). Injected as SystemMessage only for the matching mode.
@@ -118,8 +118,8 @@ root/
       database_explorer.py    — GET /api/database/tables — browse DB tables with pagination
       documents.py            — GET /api/documents — serve RAG docs as markdown + PDF (fpdf2)
     tools/
-      query_library.py        — Pre-built SQL query lookup by name (44 queries)
-      sql_tool.py             — Read-only SQL SELECT; returns results as markdown table
+      query_library.py        — Pre-built SQL query lookup by name (44+ queries); 60s TTL result cache; async via aiosqlite
+      sql_tool.py             — Read-only SQL SELECT; returns results as markdown table; 60s TTL result cache; async via aiosqlite
       rag_tool.py             — Delegates to rag/retriever.py (ChromaDB)
       search_tool.py          — Tavily web search (max 5 results)
       python_tool.py          — Python subprocess executor; captures matplotlib charts as PNG
@@ -132,13 +132,18 @@ root/
     charts/                   — Saved chart PNGs (auto-cleaned after 1h)
     chroma_db/                — Persisted ChromaDB vectorstore (auto-generated)
     tests/
-      eval_prompts.py         — Evaluation harness: 10 test prompts with pass/fail criteria
+      eval_prompts.py         — Evaluation harness: 23 test prompts with pass/fail criteria
+      benchmark_results.json  — Performance benchmark results (10 scenarios, timing metrics)
 
   agent/                      — Original standalone agent (Gradio UI + CLI)
     .venv/                    — Python virtual environment (used by backend too)
     app.py                    — Gradio web UI (port 7860) — legacy standalone mode
     main.py                   — CLI REPL (/exit, /reset, /tools) — legacy
-    requirements.txt          — Python dependencies (includes matplotlib)
+    requirements.txt          — Python dependencies (langgraph, langchain, aiosqlite, structlog, matplotlib, etc.)
+
+  skills/                     — Reference skill modules (LangChain/LangGraph best practices)
+    .agents/skills/           — 5 skill modules: deep-agents-core, deep-agents-orchestration, langchain-rag, langgraph-fundamentals, langgraph-human-in-the-loop
+    skills-lock.json          — Skill versions and hashes
 
   docs/                       — RAG knowledge base (11 Markdown files, includes capability-use-case-map.md)
   dev.db                      — SQLite database (Prisma-generated schema)
@@ -153,8 +158,12 @@ root/
 3. `useChat` sends a request to Next.js route `/api/chat/route.ts`
 4. The Next.js route proxies to `POST http://127.0.0.1:8001/api/chat` and bridges the FastAPI SSE stream into the Vercel AI SDK data stream format (`0:` text tokens, `d:` done)
 5. FastAPI's `stream_agent` delegates to `stream_graph()` which runs the Aria StateGraph:
-   - **classify node**: Classifies user message into a response mode via `mode_classifier.py`, detects HITL approval and PO intent, prepends mode instruction
-   - **plan_and_call node**: LLM with tools bound produces either tool calls or text
+   - **summarize_if_needed node**: If conversation > 12 messages, condenses older messages into a summary (keeps last 6 verbatim) using a dedicated summarizer LLM
+   - **classify node**: Classifies user message into a response mode via `mode_classifier.py`, detects HITL approval and PO intent, checks for direct query match and greeting patterns
+   - **Fast lanes** (skip LLM entirely):
+     - **greeting** → `fast_response` node → END (canned responses, no LLM call)
+     - **direct_query** → `direct_query` node → END (executes matched query_library entry directly)
+   - **plan_and_call node**: LLM with tools bound produces either tool calls or text (two SystemMessages: core prompt + mode template, enables prompt prefix caching)
    - **execute_tools node**: Runs tool calls, increments `tool_call_count` in graph state, captures SQL from `sql_query`
    - **Conditional edge (route_after_tools)**: If `tool_call_count < max_tool_calls` → loops back to `plan_and_call`; else → `force_respond`
    - **force_respond node**: LLM *without* tools bound (physically cannot call tools), receives a SystemMessage to produce final answer
@@ -162,6 +171,7 @@ root/
    - **hitl_gate node** (if HITL detected): Calls `interrupt()` — graph pauses, SSE stream ends with the HITL_REQUEST content
    - **assemble_response + validate nodes**: Build final response text, run coherence/HITL validators
    - The streaming layer (`stream.py`) captures SQL from `on_tool_end` events and injects ` ```sql ` blocks before the first text token
+   - **Performance tracking**: `stream.py` emits `\x00PERF:` markers for TTFT, LLM thinking time, tool execution time, and total graph duration — forwarded as `perf` SSE events to the frontend
 6. For HITL approval: user clicks Approve → `[HITL Response]` message → `stream_graph()` detects this and resumes the graph via `Command(resume=decision)` → **post_approve** node produces the final artifact
 7. After streaming completes, `chat.py` runs post-processing validators. Messages are persisted to SQLite. Auto-title is generated for the first exchange.
 8. `onFinish` in `useChat` fires `aria:conversation-updated` DOM events to refresh the sidebar
@@ -271,11 +281,11 @@ The agent chains tools as needed — e.g. `query_library` → `python_executor` 
 
 ### Query Library
 
-37 pre-built queries in `backend/queries/library.py`, organised by category:
+44+ pre-built queries in `backend/queries/library.py`, organised by category:
 
 | Category | Query names |
 |---|---|
-| Sales/Revenue | `total_revenue`, `revenue_by_month`, `revenue_by_category`, `sales_last_30d`, `aov_by_month`, `revenue_share_by_category` |
+| Sales/Revenue | `total_revenue`, `revenue_by_month`, `revenue_by_category`, `sales_last_7d`, `sales_last_30d`, `sales_last_90d`, `aov_by_month`, `revenue_share_by_category`, `revenue_by_category_30d`, `revenue_by_category_90d` |
 | Products | `top_products_by_revenue`, `top_products_by_quantity`, `products_by_category`, `top_rated_products`, `products_without_reviews`, `top_products_with_share`, `high_rated_low_sales` |
 | Inventory | `low_stock`, `out_of_stock`, `inventory_overview`, `stockout_risk` |
 | Orders | `orders_by_status`, `recent_orders`, `orders_today`, `pending_orders`, `cancelled_order_rate` |
@@ -347,7 +357,7 @@ Run `python -m rag.ingest` from `agent/` after adding or modifying docs. Chunk s
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_MODEL` | `gpt-5-mini-2025-08-07` | OpenAI chat model |
+| `LLM_MODEL` | `gpt-4o-mini-2024-07-18` | OpenAI chat model |
 | `EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI embedding model |
 | `EXECUTOR_TIMEOUT_SEC` | `30` | Python executor subprocess timeout |
 | `RAG_TOP_K` | `5` | Number of RAG chunks returned |
@@ -361,7 +371,7 @@ Run `python -m rag.ingest` from `agent/` after adding or modifying docs. Chunk s
 ## Frontend Notes
 
 - **Tailwind CSS v4**: Uses `@import "tailwindcss"` and `@plugin` in `globals.css`. The `tailwind.config.ts` file is effectively ignored — all plugin loading goes through `@plugin "@tailwindcss/typography"` in CSS.
-- **Vercel AI SDK `useChat`**: The Next.js API route at `src/app/api/chat/route.ts` bridges `useChat` requests to FastAPI SSE, converting `token`/`done`/`error` events into Vercel AI SDK data stream format.
+- **Vercel AI SDK `useChat`**: The Next.js API route at `src/app/api/chat/route.ts` bridges `useChat` requests to FastAPI SSE, converting `token`/`done`/`error`/`perf` events into Vercel AI SDK data stream format. `maxDuration = 120` and `AbortController` with 120s timeout.
 - **JSON block extraction**: `MessageBubble` runs `extractStructuredBlocks()` (from `src/lib/parsers.ts`) before SQL parsing to detect `USE_CASE_CARDS` and `HITL_REQUEST` JSON blocks. These are stripped from visible content and rendered as UI components. Extraction is skipped during streaming (`isStreaming` prop) to avoid parsing partial JSON.
 - **Streaming approval placeholder**: During streaming, `MessageBubble` detects partial ` ```json ` blocks containing `HITL_REQUEST` and replaces them with an amber "Creating approval..." card with a spinner, instead of showing raw JSON.
 - **SQL tab rendering**: `MessageBubble` runs `parseMessageContent()` on the cleaned content to find ` ```sql ``` + table` pairs. These are rendered as `SqlResultsBlock` (tabbed: Results / SQL Query). Standalone tables without SQL get a simpler `Results` card.
@@ -445,6 +455,50 @@ Run `python -m rag.ingest` from `agent/` after adding or modifying docs. Chunk s
 
 LLM-calling nodes in `backend/graph/nodes.py` **must** be Runnable chains (`RunnableLambda | ChatOpenAI | RunnableLambda`), not function nodes that call `llm.ainvoke()`. This is required for `astream_events(version="v2")` to capture individual tokens via `on_chat_model_stream` events. Direct `llm.ainvoke()` calls inside function nodes are opaque to `astream_events` and produce zero streaming tokens. The three Runnable chain nodes are: `plan_and_call`, `force_respond`, and `post_approve`.
 
+## Performance Optimizations
+
+The following optimizations have been implemented across the codebase:
+
+### Direct Query Routing (Fast Lane)
+
+Simple factual questions (e.g. "total revenue", "top products", "low stock") are matched against 23 regex patterns in `mode_classifier.py` (`_DIRECT_ROUTES`) and routed directly to `query_library` without any LLM call. Only matches short messages (< 80 chars, no complex connectors). Classified as `mode="direct_query"` → `direct_query` node → END.
+
+### Greeting Fast Lane
+
+Greetings (hello, hi, hey, thanks, who are you, etc.) are matched via `_GREETING_PATTERN` regex in `mode_classifier.py` and handled by `fast_response` node with canned responses — no LLM call at all.
+
+### Conversation Summarization
+
+When conversations exceed 12 messages, the `summarize_if_needed` node condenses older messages into a summary (keeping the last 6 verbatim). Uses a dedicated `_llm_summarizer` instance (`gpt-4o-mini`, 300 max_tokens, 30s timeout). The summary is stored in `AriaState.summary` and prepended as a SystemMessage.
+
+### Result Caching
+
+Both `sql_tool.py` and `query_library.py` implement in-memory caches with 60-second TTL. Cache keys are based on lowercased query text (sql_tool) or query name (query_library). Reduces database load for repeated queries.
+
+### Async SQLite (aiosqlite)
+
+`sql_tool.py` and `query_library.py` use `aiosqlite` for true async database access instead of blocking `sqlite3` calls. Enables non-blocking tool execution within the async graph.
+
+### LLM Fallback Chains
+
+All LLM instances in `nodes.py` use `.with_fallbacks()` (primary: `gpt-4o-mini-2024-07-18`, fallback: `gpt-4o-mini`) and `.with_retry(stop_after_attempt=2)` for resilience.
+
+### Prompt Prefix Caching
+
+The core system prompt is sent as a separate SystemMessage (always identical) followed by a mode-specific template SystemMessage. This split enables OpenAI's prompt prefix caching on the core prompt across requests.
+
+### Structured Logging
+
+`structlog` is configured in `main.py` with contextvars, ISO timestamps, and console rendering. `RequestIdMiddleware` adds `X-Request-ID` headers and binds request context for tracing.
+
+### Performance Event Tracking
+
+`stream.py` tracks and emits performance metrics via `\x00PERF:` markers: TTFT, LLM thinking time, per-tool execution time, and total graph duration. These are forwarded as `perf` SSE events through the Next.js proxy to the frontend. Tool status emoji messages (e.g. "Querying database...") are injected on tool start and stripped before message persistence.
+
+### Benchmark Suite
+
+`backend/tests/benchmark_results.json` contains results from a 10-scenario benchmark covering: baseline (no tools), SQL library, raw SQL, RAG, web search, charts, multi-tool, HITL flow, and complex multi-step queries. Key metrics: avg TTFT, avg tool time, avg LLM time, avg graph duration, per-scenario breakdown.
+
 ## Common Tasks for Claude Code
 
 - **Test the app**: Start both servers, then use Playwright MCP to navigate to `http://localhost:3000`
@@ -463,3 +517,4 @@ LLM-calling nodes in `backend/graph/nodes.py` **must** be Runnable chains (`Runn
 - **Add a validator**: Add a function to `backend/validators.py`, call it in `backend/routers/chat.py` after response assembly
 - **Run eval harness**: `"agent/.venv/Scripts/python.exe" backend/tests/eval_prompts.py` — sends 23 test prompts to the running backend. Checks: required/forbidden strings, length ceilings, timeout tracking. Reports PASS/WARN/FAIL. Backend must be running.
 - **Add an eval test**: Add entries to the `TESTS` list in `backend/tests/eval_prompts.py` with `name`, `prompt`, `required`, `required_any`, `forbidden`, and optionally `max_response_length`
+- **Add a direct query route**: Add a `(regex, query_name)` tuple to `_DIRECT_ROUTES` in `backend/mode_classifier.py` — matched queries skip LLM entirely

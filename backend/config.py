@@ -16,7 +16,7 @@ CHARTS_DIR.mkdir(exist_ok=True)
 BACKEND_BASE_URL = "http://127.0.0.1:8001"
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-LLM_MODEL = "gpt-5-mini-2025-08-07"
+LLM_MODEL = "gpt-4o-mini-2024-07-18"
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")

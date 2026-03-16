@@ -17,7 +17,9 @@ from ..db import get_connection
 from ..validators import check_summary_breakdown_coherence, validate_hitl_structure
 
 # Regex to strip tool-status emoji lines before persisting content
-_STATUS_LINE_RE = re.compile(r"\n*[\U0001f50d\U0001f4ca\U0001f4da\U0001f310\U0001f40d\U0001f4e6] [^\n]+\.\.\.\n*")
+# Strips tool/status emoji lines before persisting content
+# Covers: ✨ Analyzing..., 🔍 Querying..., 📊 Looking up..., 📚 Searching..., 🌐 Searching..., 🐍 Running..., 📦 Processing...
+_STATUS_LINE_RE = re.compile(r"\n*[\u2728\U0001f9e0\U0001f50d\U0001f4ca\U0001f4da\U0001f310\U0001f40d\U0001f4e6][^\n]*\.\.\.\n*")
 
 logger = logging.getLogger(__name__)
 

@@ -1,49 +1,50 @@
 import datetime
-import sqlite3
+import time
 
+import aiosqlite
 from langchain_core.tools import tool
 
 from ..config import DB_PATH
 from ..queries.library import QUERY_LIBRARY
 
+# Phase 3.2: Simple TTL cache for query results (60s)
+_QL_CACHE: dict[str, tuple[float, str]] = {}
+_QL_CACHE_TTL = 60.0
 
-def _run_query(sql: str) -> str:
-    """Execute a pre-built SQL query and return a markdown table."""
-    conn = None
+
+async def _run_query(sql: str) -> str:
+    """Execute a pre-built SQL query and return a markdown table (async)."""
     try:
-        conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-        conn.execute("PRAGMA query_only = ON")
-        cursor = conn.execute(sql)
-        rows = cursor.fetchmany(100)
+        async with aiosqlite.connect(str(DB_PATH)) as db:
+            await db.execute("PRAGMA query_only = ON")
+            cursor = await db.execute(sql)
+            columns = [desc[0] for desc in cursor.description]
+            rows = await cursor.fetchmany(100)
 
-        if not rows:
-            return "Query returned no results."
+            if not rows:
+                return "Query returned no results."
 
-        columns = [desc[0] for desc in cursor.description]
-        header = "| " + " | ".join(columns) + " |"
-        separator = "| " + " | ".join("---" for _ in columns) + " |"
-        data_rows = [
-            "| " + " | ".join(str(v) if v is not None else "" for v in row) + " |"
-            for row in rows
-        ]
-        table = "\n".join([header, separator] + data_rows)
+            header = "| " + " | ".join(columns) + " |"
+            separator = "| " + " | ".join("---" for _ in columns) + " |"
+            data_rows = [
+                "| " + " | ".join(str(v) if v is not None else "" for v in row) + " |"
+                for row in rows
+            ]
+            table = "\n".join([header, separator] + data_rows)
 
-        note = f"\n\n_{len(rows)} row(s) returned"
-        if len(rows) == 100:
-            note += " — limited to 100"
-        note += "_"
+            note = f"\n\n_{len(rows)} row(s) returned"
+            if len(rows) == 100:
+                note += " — limited to 100"
+            note += "_"
 
-        return f"{table}{note}"
+            return f"{table}{note}"
 
-    except sqlite3.Error as exc:
+    except Exception as exc:
         return f"SQL Error: {exc}"
-    finally:
-        if conn is not None:
-            conn.close()
 
 
 @tool
-def query_library(query_name: str) -> str:
+async def query_library(query_name: str) -> str:
     """Execute a pre-built SQL query from the library by name.
     Preferred over sql_query — faster and more reliable. NEVER call query_library('list').
 
@@ -84,7 +85,13 @@ def query_library(query_name: str) -> str:
             f"Call with query_name='list' to see all options, or choose from: {names}"
         )
 
-    result = _run_query(entry["sql"])
+    # Phase 3.2: Check cache
+    cache_key = query_name.strip()
+    cached = _QL_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < _QL_CACHE_TTL:
+        return cached[1]
+
+    result = await _run_query(entry["sql"])
 
     # Inject computed date range so the LLM sees real dates
     days = entry.get("date_range_days")
@@ -94,4 +101,5 @@ def query_library(query_name: str) -> str:
         prefix = f"_Date range: {start.strftime('%b %d, %Y')} – {end.strftime('%b %d, %Y')} ({days} days)_\n\n"
         result = prefix + result
 
+    _QL_CACHE[cache_key] = (time.time(), result)
     return result

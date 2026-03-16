@@ -1,10 +1,20 @@
 {
   "version": 1,
   "skills": {
+    "deep-agents-core": {
+      "source": "langchain-ai/langchain-skills",
+      "sourceType": "github",
+      "computedHash": "f82c2219a3e3b91f04165a395ced7ab75ec3b8e3d82c0f5684c53eec746c35c7"
+    },
     "deep-agents-orchestration": {
       "source": "langchain-ai/langchain-skills",
       "sourceType": "github",
       "computedHash": "fb3a558ec0c485ae813e23140cd2ff7df7b8e00b6538eea760816fa78546180e"
+    },
+    "langchain-rag": {
+      "source": "langchain-ai/langchain-skills",
+      "sourceType": "github",
+      "computedHash": "25f569409285938fcb078ed2d14893f7d620131a28107f7a5c16f48b40bee24a"
     },
     "langgraph-fundamentals": {
       "source": "langchain-ai/langchain-skills",

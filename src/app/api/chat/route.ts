@@ -95,6 +95,17 @@ export async function POST(request: Request) {
             // the reader loop alive — no need to write anything to the data stream.
           }
 
+          // Phase 2.4: Forward perf events as data stream annotations for dev visibility
+          if (parsed.event === "perf") {
+            const payload = safeParse(parsed.data);
+            if (payload) {
+              dataStream.writeMessageAnnotation({
+                type: "perf",
+                ...payload,
+              });
+            }
+          }
+
           if (parsed.event === "error") {
             const payload = safeParse(parsed.data);
             const detail =

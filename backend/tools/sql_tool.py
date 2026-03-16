@@ -1,20 +1,18 @@
 import sqlite3
+import time
 
+import aiosqlite
 from langchain_core.tools import tool
 
 from ..config import DB_PATH
 
-
-def _get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA query_only = ON")
-    return conn
+# Phase 3.2: Simple TTL cache for query results (60s)
+_SQL_CACHE: dict[str, tuple[float, str]] = {}
+_SQL_CACHE_TTL = 60.0
 
 
-def _to_markdown_table(columns: list[str], rows: list[sqlite3.Row]) -> str:
+def _to_markdown_table(columns: list[str], rows: list) -> str:
     """Format query results as a GitHub-flavored markdown table."""
-    # Build header
     header = "| " + " | ".join(columns) + " |"
     separator = "| " + " | ".join("---" for _ in columns) + " |"
     data_rows = []
@@ -25,7 +23,7 @@ def _to_markdown_table(columns: list[str], rows: list[sqlite3.Row]) -> str:
 
 
 @tool
-def sql_query(query: str) -> str:
+async def sql_query(query: str) -> str:
     """Execute a read-only SQL SELECT query against the e-commerce SQLite database.
     Returns results as a markdown table. Use only when no query_library query fits.
 
@@ -56,27 +54,33 @@ def sql_query(query: str) -> str:
     if not query.upper().startswith("SELECT"):
         return "Error: only SELECT queries are permitted."
 
-    conn = None
+    # Phase 3.2: Check cache
+    cache_key = query.strip().lower()
+    cached = _SQL_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < _SQL_CACHE_TTL:
+        return cached[1]
+
+    # Phase 3.3: True async SQLite via aiosqlite
     try:
-        conn = _get_connection()
-        cursor = conn.execute(query)
-        rows = cursor.fetchmany(100)
+        async with aiosqlite.connect(str(DB_PATH)) as db:
+            await db.execute("PRAGMA query_only = ON")
+            cursor = await db.execute(query)
+            columns = [desc[0] for desc in cursor.description]
+            rows = await cursor.fetchmany(100)
 
-        if not rows:
-            return "Query returned no results."
+            if not rows:
+                return "Query returned no results."
 
-        columns = [desc[0] for desc in cursor.description]
-        table = _to_markdown_table(columns, rows)
+            table = _to_markdown_table(columns, rows)
 
-        count_note = f"\n\n_{len(rows)} row(s) returned"
-        if len(rows) == 100:
-            count_note += " — limited to 100"
-        count_note += "_"
+            count_note = f"\n\n_{len(rows)} row(s) returned"
+            if len(rows) == 100:
+                count_note += " — limited to 100"
+            count_note += "_"
 
-        return f"{table}{count_note}"
+            result = f"{table}{count_note}"
+            _SQL_CACHE[cache_key] = (time.time(), result)
+            return result
 
-    except sqlite3.Error as exc:
+    except Exception as exc:
         return f"SQL Error: {exc}"
-    finally:
-        if conn is not None:
-            conn.close()
