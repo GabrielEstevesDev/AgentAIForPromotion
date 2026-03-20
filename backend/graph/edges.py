@@ -9,8 +9,10 @@ logger = logging.getLogger(__name__)
 
 def route_after_classify(state: dict) -> str:
     """After classify: fast_response for greetings, direct_query for simple lookups, plan_and_call otherwise."""
-    if state.get("mode") == "greeting":
+    if state.get("mode") in {"greeting", "off_topic"}:
         return "fast_response"
+    if state.get("mode") == "chart" and state.get("direct_chart_name"):
+        return "direct_chart"
     if state.get("mode") == "direct_query" and state.get("direct_query_name"):
         return "direct_query"
     return "plan_and_call"
@@ -42,6 +44,16 @@ def route_after_tools(state: dict) -> str:
 
     logger.info("Tool count %d/%d — routing to force_respond", tool_count, max_tools)
     return "force_respond"
+
+
+def route_after_hitl_gate(state: dict) -> str:
+    """After hitl_gate: request_changes → inject_revision_request, approve/reject → post_approve."""
+    decision = state.get("hitl_decision", {})
+    action = decision.get("action", "approve")
+    if action == "request_changes":
+        logger.info("HITL action is request_changes — routing to inject_revision_request")
+        return "inject_revision_request"
+    return "post_approve"
 
 
 def route_after_hitl_check(state: dict) -> str:

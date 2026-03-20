@@ -5,10 +5,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Bot, Check, CheckCircle, Copy, Database, Loader2, ShieldCheck, Table2, User, XCircle, MessageSquare } from "lucide-react";
 
-import type { ChatMessage } from "@/lib/api";
+import type { ChatMessage, TraceEvent } from "@/lib/api";
 import type { HitlRequestPayload, UseCaseCardsPayload } from "@/lib/types";
 import { extractStructuredBlocks } from "@/lib/parsers";
 import { HitlApproval } from "./HitlApproval";
+import { TracePanel } from "./TracePanel";
 
 // ---------------------------------------------------------------------------
 // Content parsing — detect ```sql block + following markdown table pairs
@@ -22,7 +23,7 @@ type Segment =
 
 function extractLeadingTable(
   text: string,
-): { table: string; consumed: number } | null {
+): { table: string; consumed: number; preText: string } | null {
   const lines = text.split("\n");
   let tableStart = -1;
 
@@ -57,7 +58,11 @@ function extractLeadingTable(
   const consumedText = lines.slice(0, i).join("\n");
   const consumed = consumedText.length + (i < lines.length ? 1 : 0);
 
-  return { table: tableMarkdown, consumed };
+  // Preserve any meaningful content between the SQL block and the table start
+  // (e.g. chart image tags, intro text) so it doesn't get swallowed
+  const preText = lines.slice(0, tableStart).join("\n").trim();
+
+  return { table: tableMarkdown, consumed, preText };
 }
 
 function parseMessageContent(content: string): Segment[] {
@@ -77,6 +82,10 @@ function parseMessageContent(content: string): Segment[] {
     const tableResult = extractLeadingTable(afterBlock);
 
     if (tableResult) {
+      // Emit any content between the SQL block and the table (e.g. chart images, intro text)
+      if (tableResult.preText) {
+        result.push({ type: "markdown", content: tableResult.preText });
+      }
       result.push({ type: "sql-results", sql, tableMarkdown: tableResult.table });
       cursor = matchEnd + tableResult.consumed;
     } else {
@@ -244,6 +253,8 @@ const MARKDOWN_COMPONENTS = {
     <img
       src={src}
       alt={alt ?? "chart"}
+      loading="eager"
+      key={src}
       className="my-3 max-w-full rounded-2xl border border-[var(--border)] shadow-md"
     />
   ),
@@ -466,6 +477,13 @@ export function MessageBubble({
             </div>
           ) : null,
         )}
+
+      {/* Trace Inspector — rendered below assistant messages */}
+      {!isUser && message.trace && message.trace.length > 0 && (
+        <div className="w-full pl-12">
+          <TracePanel events={message.trace} />
+        </div>
+      )}
     </article>
   );
 }

@@ -31,7 +31,7 @@ if _HAS_MPL:
             _fname = str(_uuid.uuid4()) + '.png'
             _fpath = _os.path.join({str(charts_dir)!r}, _fname)
             _fig.savefig(_fpath, format='png', bbox_inches='tight', dpi=150)
-            print(f'![chart]({base_url}/api/charts/{{_fname}})')
+            print(f'![chart](/api/charts/{{_fname}})')
         _plt.close('all')
     except Exception as _e:
         print(f'[chart capture error] {{_e}}')
@@ -55,6 +55,11 @@ def python_executor(code: str) -> str:
     Matplotlib charts are automatically captured and returned as inline markdown images.
     To produce a chart: import matplotlib.pyplot as plt, build the plot, call plt.tight_layout() — do NOT call plt.show().
 
+    DATA HANDLING: Always define your data directly as Python lists or dicts using the
+    exact values from previous tool calls (sql_query or query_library).
+    NEVER import sqlite3 or connect to any database in your Python code.
+    The data must be hardcoded in the script.
+
     CHART STANDARDS:
     - plt.style.use('seaborn-v0_8-whitegrid')
     - Descriptive title: plt.title('Revenue by Category – Last 12 Months')
@@ -63,8 +68,11 @@ def python_executor(code: str) -> str:
     - Thousands separator for large numbers
     - ONE chart per response. No charts in HITL pre-approval.
     - SORTING: If x-axis is dates/months/time → ALWAYS sort chronologically ascending (oldest left, newest right). NEVER sort time-series by value. Only sort by value when x-axis is a non-time category (product names, categories).
+    - Do NOT call plt.savefig() or plt.show() — chart capture is fully automatic.
 
     CRITICAL: You MUST call python_executor to create charts. Never write markdown image links like ![chart](attachment://...) — they don't work.
+
+    After execution, this tool returns a ![chart](/api/charts/...) link — include this EXACT link in your response.
     """
     _cleanup_old_charts()
     code = textwrap.dedent(code)

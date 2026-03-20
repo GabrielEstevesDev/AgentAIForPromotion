@@ -1,5 +1,5 @@
 import { ConversationClient } from "@/app/components/ConversationClient";
-import { fetchConversation, fetchConversationMessages } from "@/lib/server-api";
+import { fetchConversation, fetchMessagesWithTraces } from "@/lib/server-api";
 
 type ChatPageProps = {
   params: Promise<{
@@ -11,7 +11,7 @@ export default async function ConversationPage({ params }: ChatPageProps) {
   const { id } = await params;
   const [conversation, messages] = await Promise.all([
     fetchConversation(id).catch(() => null),
-    fetchConversationMessages(id).catch(() => []),
+    fetchMessagesWithTraces(id).catch(() => []),
   ]);
 
   return (

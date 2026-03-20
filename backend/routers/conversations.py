@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import uuid
 
@@ -137,6 +138,88 @@ def rename_conversation(conversation_id: str, payload: ConversationUpdate) -> di
             ).fetchone()
             conn.commit()
             return row
+    except sqlite3.OperationalError as exc:
+        _handle_missing_table(exc)
+
+
+@router.get("/{conversation_id}/traces")
+def get_conversation_traces(conversation_id: str) -> list[dict]:
+    """Get all trace data for a conversation, keyed by messageId."""
+    try:
+        with get_connection() as conn:
+            conversation = conn.execute(
+                "SELECT id FROM Conversation WHERE id = ?",
+                (conversation_id,),
+            ).fetchone()
+            if not conversation:
+                raise HTTPException(status_code=404, detail="Conversation not found.")
+
+            # Check if table exists
+            table_check = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='MessageTrace'"
+            ).fetchone()
+            if not table_check:
+                return []
+
+            rows = conn.execute(
+                """
+                SELECT messageId, traceData, createdAt
+                FROM MessageTrace
+                WHERE conversationId = ?
+                ORDER BY datetime(createdAt) ASC
+                """,
+                (conversation_id,),
+            ).fetchall()
+
+            result = []
+            for row in rows:
+                try:
+                    trace = json.loads(row["traceData"])
+                except (json.JSONDecodeError, TypeError):
+                    trace = []
+                result.append({
+                    "messageId": row["messageId"],
+                    "trace": trace,
+                    "createdAt": row["createdAt"],
+                })
+            return result
+    except sqlite3.OperationalError as exc:
+        _handle_missing_table(exc)
+
+
+@router.get("/{conversation_id}/traces/{message_id}")
+def get_message_trace(conversation_id: str, message_id: str) -> dict:
+    """Get trace data for a specific message."""
+    try:
+        with get_connection() as conn:
+            table_check = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='MessageTrace'"
+            ).fetchone()
+            if not table_check:
+                raise HTTPException(status_code=404, detail="No trace data available.")
+
+            row = conn.execute(
+                """
+                SELECT messageId, traceData, createdAt
+                FROM MessageTrace
+                WHERE conversationId = ? AND messageId = ?
+                """,
+                (conversation_id, message_id),
+            ).fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail="No trace found for this message.")
+
+            try:
+                trace = json.loads(row["traceData"])
+            except (json.JSONDecodeError, TypeError):
+                trace = []
+
+            return {
+                "messageId": row["messageId"],
+                "trace": trace,
+                "createdAt": row["createdAt"],
+            }
     except sqlite3.OperationalError as exc:
         _handle_missing_table(exc)
 

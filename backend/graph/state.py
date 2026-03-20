@@ -15,6 +15,7 @@ class AriaState(TypedDict):
     - messages: Chat history managed by LangGraph's add_messages reducer.
     - mode / mode_config: Response mode from the classifier.
     - direct_query_name: If set, skip LLM and run this query_library entry directly.
+    - direct_chart_name: If set, skip the LLM and build a deterministic chart response.
     - tool_call_count: Incremented by execute_tools; drives the routing edge.
     - captured_sqls: SQL blocks captured from sql_query tool calls (for SQL tab).
     - needs_hitl: Whether the last AI message contains a HITL_REQUEST.
@@ -30,6 +31,7 @@ class AriaState(TypedDict):
     mode: Optional[str]
     mode_config: Optional[dict]
     direct_query_name: Optional[str]
+    direct_chart_name: Optional[str]
     tool_call_count: int
     captured_sqls: Annotated[list[str], operator.add]
     needs_hitl: bool

@@ -48,6 +48,8 @@ async def sql_query(query: str) -> str:
     - ALWAYS exclude Cancelled orders unless asked: WHERE status != 'Cancelled'
     - Use relative dates: date('now', '-30 days'). NEVER hardcode dates.
     - State the exact period in your response: "Last 30 days: Feb 12 – Mar 14, 2026"
+    - TOP N / BOTTOM N: If the user asks for 'Top N' or 'Bottom N', ALWAYS use ORDER BY + LIMIT N.
+      Example: SELECT p.name, i.stockLevel FROM Inventory i JOIN Product p ON i.productId = p.id ORDER BY i.stockLevel DESC LIMIT 15
     """
     query = query.strip()
 

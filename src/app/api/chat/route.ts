@@ -106,6 +106,17 @@ export async function POST(request: Request) {
             }
           }
 
+          // Forward trace events as data stream annotations
+          if (parsed.event === "trace") {
+            const tracePayload = safeParse(parsed.data);
+            if (Array.isArray(tracePayload)) {
+              dataStream.writeMessageAnnotation({
+                type: "trace",
+                events: tracePayload as unknown as string,
+              });
+            }
+          }
+
           if (parsed.event === "error") {
             const payload = safeParse(parsed.data);
             const detail =

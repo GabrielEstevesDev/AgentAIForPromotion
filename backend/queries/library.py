@@ -126,18 +126,9 @@ ORDER BY p.category, p.name
 
     # ── Inventory ────────────────────────────────────────────────────────────
     "low_stock": {
-        "description": "Products with stock level below 10 units",
-        "sql": """
-SELECT
-    p.name,
-    p.category,
-    i.stockLevel,
-    i.lastRestock
-FROM Inventory i
-JOIN Product p ON i.productId = p.id
-WHERE i.stockLevel < 10
-ORDER BY i.stockLevel ASC
-""".strip(),
+        "description": "Products with stock level below a threshold. Default threshold is 10. Pass params_json with 'threshold' to override (e.g. {\"threshold\": 20} for stock < 20).",
+        "parameterized": True,
+        "sql": "",
     },
     "out_of_stock": {
         "description": "Products currently out of stock",
@@ -168,6 +159,20 @@ GROUP BY p.category
 ORDER BY total_units ASC
 """.strip(),
     },
+    "top_products_by_inventory": {
+        "description": "Products ranked by stock level (highest inventory first)",
+        "sql": """
+SELECT
+    p.name,
+    p.category,
+    i.stockLevel,
+    i.lastRestock
+FROM Inventory i
+JOIN Product p ON i.productId = p.id
+ORDER BY i.stockLevel DESC
+LIMIT 50
+""".strip(),
+    },
 
     # ── Orders ───────────────────────────────────────────────────────────────
     "orders_by_status": {
@@ -188,7 +193,7 @@ ORDER BY order_count DESC
         "sql": """
 SELECT
     c.firstName || ' ' || c.lastName AS customer,
-    o.orderDate,
+    strftime('%m/%d/%Y', o.orderDate) AS orderDate,
     o.status,
     ROUND(o.totalAmount, 2) AS amount
 FROM "Order" o
@@ -202,7 +207,7 @@ LIMIT 20
         "sql": """
 SELECT
     c.firstName || ' ' || c.lastName AS customer,
-    o.orderDate,
+    strftime('%m/%d/%Y', o.orderDate) AS orderDate,
     o.status,
     ROUND(o.totalAmount, 2) AS amount
 FROM "Order" o
@@ -216,13 +221,18 @@ ORDER BY o.orderDate DESC
         "sql": """
 SELECT
     c.firstName || ' ' || c.lastName AS customer,
-    o.orderDate,
+    strftime('%m/%d/%Y', o.orderDate) AS orderDate,
     ROUND(o.totalAmount, 2) AS amount
 FROM "Order" o
 JOIN Customer c ON o.customerId = c.id
 WHERE o.status = 'Pending'
 ORDER BY o.orderDate ASC
 """.strip(),
+    },
+    "refund_order_context": {
+        "description": "Parameterized HITL helper for refund-email context. Requires params_json with customer_name and optional order_ref.",
+        "sql": "",
+        "parameterized": True,
     },
 
     # ── Customers ────────────────────────────────────────────────────────────
@@ -248,7 +258,7 @@ LIMIT 10
 SELECT
     firstName || ' ' || lastName AS customer,
     email,
-    createdAt
+    strftime('%m/%d/%Y', createdAt) AS createdAt
 FROM Customer
 WHERE strftime('%Y-%m', createdAt) = strftime('%Y-%m', 'now')
 ORDER BY createdAt DESC
@@ -295,7 +305,7 @@ SELECT
     p.name AS product,
     r.rating,
     r.comment,
-    r.createdAt
+    strftime('%m/%d/%Y', r.createdAt) AS createdAt
 FROM Review r
 JOIN Product p ON r.productId = p.id
 ORDER BY r.createdAt DESC
@@ -361,7 +371,7 @@ SELECT
     po.status,
     po.totalAmount AS total,
     COUNT(poi.id) AS items,
-    po.createdAt
+    strftime('%m/%d/%Y', po.createdAt) AS createdAt
 FROM PurchaseOrder po
 JOIN Supplier s ON po.supplierId = s.id
 LEFT JOIN PurchaseOrderItem poi ON poi.purchaseOrderId = po.id

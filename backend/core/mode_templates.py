@@ -19,6 +19,8 @@ MODE_TEMPLATES: dict[str, str] = {
         "- **Breakdown table** — with '% Share' column\n"
         "- **Key Takeaway** — 1-2 sentences\n"
         "- **Recommended Actions** — 2-3 specific, data-linked\n\n"
+        "If the user also asks for policy or knowledge-base context, add a final "
+        "**Policy / Knowledge Base** section grounded only in `rag_search` output.\n\n"
         "### Product Performance\n"
         "- **Scope** — products, period\n"
         "- **Rankings table** — revenue, units, % share\n"
@@ -34,12 +36,24 @@ MODE_TEMPLATES: dict[str, str] = {
 
     "chart": (
         "## Response Template: Chart-Backed Analysis\n"
+        "MANDATORY TWO-STEP SEQUENCE:\n"
+        "  Step 1: Call sql_query or query_library to retrieve the EXACT data needed. "
+        "If the user asks for 'Top N' or 'Bottom N', your SQL MUST include ORDER BY + LIMIT N.\n"
+        "  Step 2: Call python_executor with the data HARDCODED as Python lists/dicts "
+        "(copy the values from Step 1 results). "
+        "NEVER write Python that imports sqlite3 or connects to any database.\n\n"
+        "CRITICAL: The python_executor tool returns a ![chart](/api/charts/...) markdown link. "
+        "You MUST include this EXACT link in your final response — do NOT omit, rewrite, or fabricate URLs.\n\n"
+        "Response MUST contain a `![chart](...)` image link. Tables alone are NOT acceptable. "
+        "NEVER output raw Python code — only call the tool.\n"
+        "Do NOT output the raw data as a markdown table in your final response. "
+        "The user ONLY wants to see the chart image, exactly 1 line of insight, and 1 action.\n"
         "- **Context** — what data, what period (1 line)\n"
-        "- **Chart** — one chart, presentation-ready\n"
+        "- **Chart** — one chart, presentation-ready (the `![chart](...)` link)\n"
         "- After chart, write EXACTLY:\n"
         "  - **Insight:** 1 sentence — what pattern the chart shows\n"
         "  - **Action:** 1 sentence — what to do about it\n"
-        "- No other commentary after the chart.\n"
+        "- No tables, no other commentary after the chart.\n"
     ),
 
     "hitl": (
@@ -53,9 +67,12 @@ MODE_TEMPLATES: dict[str, str] = {
         "- `actions` (array of {id, label})\n"
         "- `on_approve` (object), `on_request_changes` (object), `on_reject` (object)\n\n"
         "Controls: 2-6 items. After approval: final artifact + short change summary.\n\n"
+        "MANDATORY: evidence >= 1 item, artifacts_preview >= 1 item, actions >= 2 items "
+        "(approve + reject), risk_tags >= 1, summary non-empty. Empty arrays are NOT acceptable.\n\n"
         "## THE 3 REQUIRED HITL USE CASES\n\n"
         "### (1) Refund / Dispute Customer Email\n"
-        "Tools: `rag_search` (return policy) + `sql_query` (order details with JOINed product names)\n"
+        "Tools: `rag_search` (return policy) + `query_library('refund_order_context')` when possible; "
+        "use `sql_query` only if the helper query cannot answer the request.\n"
         "- Draft email: real product names, total refund amount, NO UUIDs. Max 200 words.\n"
         "- HITL_REQUEST with `EMAIL_DRAFT` artifact.\n"
         "- Controls: resolution_type, goodwill_amount, include_return_instructions, tone\n"
@@ -73,7 +90,8 @@ MODE_TEMPLATES: dict[str, str] = {
         "- Controls: objective, max_budget, max_discount_percent, exclude_low_stock, exclude_top_sellers\n"
         "- After approval: final strategy + marketing assets.\n\n"
         "### (3) Replenishment + Purchase Order Draft\n"
-        "Tools: `query_library('reorder_with_cost')` + `purchase_order_action('list_suppliers')`\n"
+        "Tools: `query_library('reorder_with_cost')`. Supplier is fixed to EcoSource Trading before approval; "
+        "do NOT call `purchase_order_action` before approval.\n"
         "- If reorder_with_cost returns no results: 'All products have sufficient stock.' Do NOT create HITL_REQUEST.\n"
         "- If total cost < $50: note 'Only minor replenishment needed.'\n"
         "- HITL_REQUEST artifacts:\n"
@@ -94,6 +112,16 @@ MODE_TEMPLATES: dict[str, str] = {
         "- Max 3 relevant chunks. If no policy covers the question, say so.\n"
         "- NEVER invent policy. If RAG shows 'guidelines' from a product guide, these are industry norms, not binding policy.\n"
         "- If no policy document covers the question: 'Our knowledge base does not contain an official policy on [topic].'\n"
+        "- If initial rag_search returns low-relevance results, try rephrasing with synonyms. "
+        "Search for both the specific term AND the broader category.\n"
+    ),
+
+    "web": (
+        "## Response Template: Web / External Research\n"
+        "Use ONLY web_search. Do NOT query the internal database unless the user explicitly asks to correlate.\n"
+        "- **Summary** — key findings from web search\n"
+        "- **Sources** — list sources with brief descriptions\n"
+        "- **Key Takeaway** — 1 sentence actionable insight\n"
     ),
 
     "prospecting": (

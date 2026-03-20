@@ -21,6 +21,11 @@ from ..validators import check_summary_breakdown_coherence, validate_hitl_struct
 # Covers: ✨ Analyzing..., 🔍 Querying..., 📊 Looking up..., 📚 Searching..., 🌐 Searching..., 🐍 Running..., 📦 Processing...
 _STATUS_LINE_RE = re.compile(r"\n*[\u2728\U0001f9e0\U0001f50d\U0001f4ca\U0001f4da\U0001f310\U0001f40d\U0001f4e6][^\n]*\.\.\.\n*")
 
+# Matches chart image markdown links
+_CHART_URL_RE = re.compile(r"!\[chart\]\([^\)]+\)")
+# Matches hallucinated chart URLs (not served by /api/charts/)
+_HALLUCINATED_CHART_RE = re.compile(r"!\[chart\]\((?!/api/charts/)[^\)]+\)")
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -45,7 +50,36 @@ def _handle_missing_table(exc: sqlite3.OperationalError) -> None:
     raise exc
 
 
-def _persist_messages(conversation_id: str, user_content: str, assistant_content: str) -> None:
+def _ensure_trace_table() -> None:
+    """Create the MessageTrace table if it doesn't exist."""
+    try:
+        with get_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS MessageTrace (
+                    id TEXT PRIMARY KEY,
+                    messageId TEXT NOT NULL,
+                    conversationId TEXT NOT NULL,
+                    traceData TEXT NOT NULL,
+                    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (messageId) REFERENCES Message(id),
+                    FOREIGN KEY (conversationId) REFERENCES Conversation(id)
+                )
+            """)
+            conn.commit()
+    except Exception:
+        pass  # Best effort
+
+
+# Ensure table exists on module load
+_ensure_trace_table()
+
+
+def _persist_messages(
+    conversation_id: str,
+    user_content: str,
+    assistant_content: str,
+    trace_data: list[dict] | None = None,
+) -> None:
     try:
         with get_connection() as conn:
             conversation = conn.execute(
@@ -62,13 +96,25 @@ def _persist_messages(conversation_id: str, user_content: str, assistant_content
                 """,
                 (str(uuid.uuid4()), conversation_id, user_content),
             )
+            assistant_msg_id = str(uuid.uuid4())
             conn.execute(
                 """
                 INSERT INTO Message (id, conversationId, role, content, createdAt)
                 VALUES (?, ?, 'assistant', ?, CURRENT_TIMESTAMP)
                 """,
-                (str(uuid.uuid4()), conversation_id, assistant_content),
+                (assistant_msg_id, conversation_id, assistant_content),
             )
+
+            # Persist trace data if available
+            if trace_data:
+                conn.execute(
+                    """
+                    INSERT INTO MessageTrace (id, messageId, conversationId, traceData, createdAt)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    """,
+                    (str(uuid.uuid4()), assistant_msg_id, conversation_id, json.dumps(trace_data)),
+                )
+
             conn.execute(
                 """
                 UPDATE Conversation
@@ -152,9 +198,12 @@ async def chat(payload: ChatRequest, request: Request) -> EventSourceResponse:
 
     # Prefix used by stream.py to mark perf data in the token queue
     PERF_PREFIX = "\x00PERF:"
+    # Prefix used by stream.py to mark trace data
+    TRACE_PREFIX = "\x00TRACE:"
 
     async def event_generator():
         chunks: list[str] = []
+        trace_data: list[dict] = []
         first_token_emitted = False
         try:
             async for token in stream_agent(agent, user_content, payload.conversationId):
@@ -163,6 +212,18 @@ async def chat(payload: ChatRequest, request: Request) -> EventSourceResponse:
                     yield {
                         "event": "perf",
                         "data": token[len(PERF_PREFIX):],  # already JSON
+                    }
+                    continue
+
+                # Trace data: capture and forward as 'trace' SSE event
+                if isinstance(token, str) and token.startswith(TRACE_PREFIX):
+                    try:
+                        trace_data = json.loads(token[len(TRACE_PREFIX):])
+                    except json.JSONDecodeError:
+                        pass
+                    yield {
+                        "event": "trace",
+                        "data": token[len(TRACE_PREFIX):],
                     }
                     continue
 
@@ -185,6 +246,22 @@ async def chat(payload: ChatRequest, request: Request) -> EventSourceResponse:
             # Strip tool-status emoji lines before validation and persistence
             clean_content = _STATUS_LINE_RE.sub("", assistant_content).strip()
 
+            # Strip hallucinated chart URLs (not from /api/charts/)
+            clean_content = _HALLUCINATED_CHART_RE.sub("", clean_content)
+
+            # Deduplicate chart URLs — keep only first occurrence of each
+            _seen_charts: set[str] = set()
+            def _dedup_chart(m: re.Match) -> str:
+                url = m.group()
+                if url in _seen_charts:
+                    return ""
+                _seen_charts.add(url)
+                return url
+            clean_content = _CHART_URL_RE.sub(_dedup_chart, clean_content)
+
+            # Clean up any leftover blank lines from removed duplicates
+            clean_content = re.sub(r"\n{3,}", "\n\n", clean_content).strip()
+
             # ── Post-processing validation ──
             coherence_note = check_summary_breakdown_coherence(clean_content)
             if coherence_note:
@@ -202,7 +279,7 @@ async def chat(payload: ChatRequest, request: Request) -> EventSourceResponse:
                     payload.conversationId, hitl_warnings,
                 )
 
-            _persist_messages(payload.conversationId, user_content, clean_content)
+            _persist_messages(payload.conversationId, user_content, clean_content, trace_data or None)
             asyncio.create_task(
                 _auto_title_if_first(payload.conversationId, user_content)
             )

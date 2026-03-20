@@ -5,16 +5,18 @@ import logging
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from .edges import route_after_classify, route_after_hitl_check, route_after_plan, route_after_tools
+from .edges import route_after_classify, route_after_hitl_check, route_after_hitl_gate, route_after_plan, route_after_tools
 from .nodes import (
     assemble_response,
     classify,
+    direct_chart,
     direct_query,
     execute_tools,
     extract_hitl,
     fast_response,
     force_respond,
     hitl_gate,
+    inject_revision_request,
     plan_and_call,
     post_approve,
     summarize_if_needed,
@@ -30,13 +32,15 @@ def build_graph():
 
     Graph topology:
         START → summarize_if_needed → classify ─┬─ (greeting)      → fast_response → END
+                                                 ├─ (chart fast)   → direct_chart → END
                                                  ├─ (direct_query)  → direct_query → END
                                                  └─ (other)         → plan_and_call
                             ├─ (tool_calls) → execute_tools → route_after_tools
                             │                                   ├─ (under limit) → plan_and_call
                             │                                   └─ (at limit)    → force_respond → extract_hitl
                             └─ (text only)  → extract_hitl
-                                              ├─ (needs_hitl)  → hitl_gate → post_approve → assemble_response → validate → END
+                                              ├─ (needs_hitl)  → hitl_gate → post_approve ─┬─ (tool_calls) → execute_tools → ...
+                                                                                                   └─ (text)       → extract_hitl → ... → validate → END
                                               └─ (no hitl)     → assemble_response → validate → END
     """
     graph = StateGraph(AriaState)
@@ -45,6 +49,7 @@ def build_graph():
     graph.add_node("summarize_if_needed", summarize_if_needed)
     graph.add_node("classify", classify)
     graph.add_node("fast_response", fast_response)
+    graph.add_node("direct_chart", direct_chart)
     graph.add_node("direct_query", direct_query)
     graph.add_node("plan_and_call", plan_and_call)
     graph.add_node("execute_tools", execute_tools)
@@ -60,10 +65,12 @@ def build_graph():
     graph.add_edge("summarize_if_needed", "classify")
     graph.add_conditional_edges("classify", route_after_classify, {
         "fast_response": "fast_response",
+        "direct_chart": "direct_chart",
         "direct_query": "direct_query",
         "plan_and_call": "plan_and_call",
     })
     graph.add_edge("fast_response", END)
+    graph.add_edge("direct_chart", END)
     graph.add_edge("direct_query", END)
 
     # After plan_and_call: tool calls → execute, text → extract_hitl
@@ -87,9 +94,15 @@ def build_graph():
         "assemble_response": "assemble_response",
     })
 
-    # HITL path: hitl_gate → post_approve → assemble_response
-    graph.add_edge("hitl_gate", "post_approve")
-    graph.add_edge("post_approve", "assemble_response")
+    # HITL path: hitl_gate → (request_changes → inject_revision_request → plan_and_call)
+    #                        → (approve/reject → post_approve → extract_hitl)
+    graph.add_node("inject_revision_request", inject_revision_request)
+    graph.add_conditional_edges("hitl_gate", route_after_hitl_gate, {
+        "inject_revision_request": "inject_revision_request",
+        "post_approve": "post_approve",
+    })
+    graph.add_edge("inject_revision_request", "plan_and_call")
+    graph.add_edge("post_approve", "extract_hitl")
 
     # Final path: assemble_response → validate → END
     graph.add_edge("assemble_response", "validate")

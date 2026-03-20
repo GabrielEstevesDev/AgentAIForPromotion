@@ -9,12 +9,27 @@ export type ConversationSummary = {
   updatedAt: string;
 };
 
+export type TraceEvent = {
+  type: string;
+  ts: number;
+  name?: string;
+  duration?: number;
+  call_number?: number;
+  input?: string;
+  output_preview?: string;
+  length?: number;
+  action?: string;
+  message?: string;
+  total_duration?: number;
+};
+
 export type ChatMessage = {
   id?: string;
   conversationId?: string;
   role: "user" | "assistant" | "system" | "data";
   content: string;
   createdAt?: string;
+  trace?: TraceEvent[];
 };
 
 export async function getConversations(): Promise<ConversationSummary[]> {
@@ -41,4 +56,28 @@ export async function getConversationMessages(
   }
 
   return response.json();
+}
+
+export type ConversationTrace = {
+  messageId: string;
+  trace: TraceEvent[];
+  createdAt: string;
+};
+
+export async function getConversationTraces(
+  conversationId: string,
+): Promise<ConversationTrace[]> {
+  try {
+    const response = await fetch(`${API_BASE}/conversations/${conversationId}/traces`, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return [];
+    }
+
+    return response.json();
+  } catch {
+    return [];
+  }
 }

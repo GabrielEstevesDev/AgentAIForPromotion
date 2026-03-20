@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useChat } from "ai/react";
 
 import { ChatArea } from "@/app/components/ChatArea";
 import { ChatInput } from "@/app/components/ChatInput";
 import { UseCasesDrawer } from "@/app/components/UseCasesDrawer";
-import type { ChatMessage } from "@/lib/api";
+import type { ChatMessage, TraceEvent } from "@/lib/api";
 import type { UseCaseCardsPayload } from "@/lib/types";
 
 type ConversationClientProps = {
@@ -40,6 +40,19 @@ export function ConversationClient({
     return resolved;
   });
 
+  // Trace map: messageId → trace events (populated from initial data + live annotations)
+  const traceMapRef = useRef<Map<string, TraceEvent[]>>(new Map());
+  // Populate from initial messages on first render
+  if (traceMapRef.current.size === 0 && initialMessages.length > 0) {
+    for (const msg of initialMessages) {
+      if (msg.id && msg.trace && msg.trace.length > 0) {
+        traceMapRef.current.set(msg.id, msg.trace);
+      }
+    }
+  }
+  // Force re-render when trace map updates from live annotations
+  const [traceVersion, setTraceVersion] = useState(0);
+
   useEffect(() => {
     setActiveConversationId(initialConversationId);
   }, [initialConversationId]);
@@ -53,7 +66,43 @@ export function ConversationClient({
       content: message.content,
     })),
     body: activeConversationId ? { conversationId: activeConversationId } : undefined,
-    onFinish: () => {
+    onFinish: (message) => {
+      // Extract trace from annotations on the finished message
+      const annotations = (message as unknown as Record<string, unknown>).annotations;
+      if (Array.isArray(annotations)) {
+        for (const ann of annotations) {
+          if (
+            ann &&
+            typeof ann === "object" &&
+            (ann as Record<string, unknown>).type === "trace"
+          ) {
+            const events = (ann as Record<string, unknown>).events;
+            if (Array.isArray(events) && message.id) {
+              traceMapRef.current.set(message.id, events as TraceEvent[]);
+              setTraceVersion((v) => v + 1);
+            }
+          }
+        }
+      }
+
+      // Fallback: fetch traces from backend if not found in annotations
+      const convId = activeConversationId;
+      if (convId && !traceMapRef.current.has(message.id)) {
+        fetch(`/api/conversations/${convId}/traces`)
+          .then((res) => res.ok ? res.json() : [])
+          .then((traces: { messageId: string; trace: TraceEvent[] }[]) => {
+            let updated = false;
+            for (const t of traces) {
+              if (!traceMapRef.current.has(t.messageId) && t.trace?.length) {
+                traceMapRef.current.set(t.messageId, t.trace);
+                updated = true;
+              }
+            }
+            if (updated) setTraceVersion((v) => v + 1);
+          })
+          .catch(() => {});
+      }
+
       // Immediate refresh to add new conversation to sidebar
       window.dispatchEvent(new CustomEvent("aria:conversation-updated"));
       // Delayed refresh to pick up the auto-generated title from backend
@@ -72,12 +121,40 @@ export function ConversationClient({
             message.role === "assistant" ||
             message.role === "system",
         )
-        .map((message) => ({
-          id: message.id,
-          role: message.role as ChatMessage["role"],
-          content: message.content,
-        })),
-    [messages],
+        .map((message) => {
+          // Check trace map first (from initial data or onFinish)
+          let trace = message.id ? traceMapRef.current.get(message.id) : undefined;
+
+          // Also check live annotations on the message object
+          if (!trace && message.annotations) {
+            for (const ann of message.annotations) {
+              if (
+                ann &&
+                typeof ann === "object" &&
+                !Array.isArray(ann) &&
+                (ann as Record<string, unknown>).type === "trace"
+              ) {
+                const events = (ann as Record<string, unknown>).events;
+                if (Array.isArray(events)) {
+                  trace = events as TraceEvent[];
+                  // Also cache it
+                  if (message.id) {
+                    traceMapRef.current.set(message.id, trace);
+                  }
+                }
+              }
+            }
+          }
+
+          return {
+            id: message.id,
+            role: message.role as ChatMessage["role"],
+            content: message.content,
+            trace,
+          };
+        }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [messages, traceVersion],
   );
 
   const renderedMessages = useMemo(() => {

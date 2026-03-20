@@ -5,6 +5,7 @@ Replaces the 300-line stream_agent() in the old agent.py. Responsibilities:
 - Heartbeat wrapper (5s empty token for SSE keep-alive)
 - 90s overall timeout
 - No tool counting (graph handles it), no orphan patching, no forced response injection
+- Trace event collection for the Trace Inspector feature
 """
 
 import asyncio
@@ -19,6 +20,9 @@ from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
 
 logger = logging.getLogger(__name__)
+
+# Prefix for trace data pushed through the queue (similar to PERF_PREFIX)
+TRACE_PREFIX = "\x00TRACE:"
 
 # Status messages emitted on tool start for perceived latency reduction
 _TOOL_STATUS = {
@@ -65,25 +69,36 @@ def _extract_text(token) -> str:
 
 
 def _parse_hitl_response(content: str) -> dict:
-    """Parse a [HITL Response] message into a decision dict for Command(resume=...)."""
-    # Try to extract JSON from the message
-    json_match = re.search(r"\{.*\}", content, re.DOTALL)
-    if json_match:
+    """Parse a [HITL Response] message into a decision dict for Command(resume=...).
+
+    Expected format:
+        [HITL Response] hitlId:<id>
+        Action: <action>
+        Controls: <json>
+        Notes: <text>
+    """
+    # Extract Action line
+    action = "approve"
+    action_match = re.search(r"^Action:\s*(.+)$", content, re.MULTILINE | re.IGNORECASE)
+    if action_match:
+        action = action_match.group(1).strip()
+
+    # Extract Controls JSON
+    controls = {}
+    controls_match = re.search(r"^Controls:\s*(\{.*\})", content, re.MULTILINE | re.DOTALL)
+    if controls_match:
         try:
-            data = json.loads(json_match.group())
-            return {
-                "action": data.get("action", "approve"),
-                "controls": data.get("controls", {}),
-                "notes": data.get("notes", ""),
-            }
+            controls = json.loads(controls_match.group(1))
         except json.JSONDecodeError:
             pass
 
-    # Fallback: simple approval/rejection detection
-    lower = content.lower()
-    if "reject" in lower:
-        return {"action": "reject", "controls": {}, "notes": content}
-    return {"action": "approve", "controls": {}, "notes": content}
+    # Extract Notes
+    notes = ""
+    notes_match = re.search(r"^Notes:\s*(.+)$", content, re.MULTILINE | re.DOTALL)
+    if notes_match:
+        notes = notes_match.group(1).strip()
+
+    return {"action": action, "controls": controls, "notes": notes}
 
 
 async def stream_graph(graph, message: str, thread_id: str) -> AsyncIterator[str]:
@@ -107,6 +122,18 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
     """Inner streaming implementation (called under per-thread lock)."""
     config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 25}
 
+    # ── Trace event collection ──
+    trace_events: list[dict] = []
+    trace_start = time.perf_counter()
+
+    def _trace(event_type: str, **data):
+        """Append a trace event with a relative timestamp."""
+        trace_events.append({
+            "type": event_type,
+            "ts": round(time.perf_counter() - trace_start, 4),
+            **data,
+        })
+
     # Determine if this is a HITL resume or a new message
     is_hitl_resume = "[hitl response]" in message.lower()
 
@@ -114,8 +141,10 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
         decision = _parse_hitl_response(message)
         input_value = Command(resume=decision)
         logger.info("Resuming graph with HITL decision: %s [thread=%s]", decision.get("action"), thread_id)
+        _trace("hitl_resume", action=decision.get("action", "unknown"))
     else:
         input_value = {"messages": [HumanMessage(content=message)]}
+        _trace("user_message", length=len(message))
 
     # Phase 1.1: Immediate status message for perceived <500ms TTFT
     if not is_hitl_resume:
@@ -153,6 +182,16 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
         perf_llm_call_starts: dict[str, float] = {}  # run_id -> start time for each LLM call
         any_text_emitted = False
 
+        # Track active node runs for duration calculation
+        perf_node_starts: dict[str, float] = {}
+        # Known graph node names (to filter out internal chains)
+        _GRAPH_NODES = {
+            "summarize_if_needed", "classify", "fast_response", "direct_query",
+            "direct_chart", "plan_and_call", "execute_tools", "force_respond",
+            "extract_hitl", "hitl_gate", "inject_revision_request", "post_approve",
+            "assemble_response", "validate",
+        }
+
         try:
             async for event in graph.astream_events(
                 input_value,
@@ -161,12 +200,41 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
             ):
                 event_type = event.get("event")
 
+                # ── Trace: capture graph node entry/exit ──
+                if event_type == "on_chain_start":
+                    chain_name = event.get("name", "")
+                    if chain_name in _GRAPH_NODES:
+                        run_id = event.get("run_id", "")
+                        perf_node_starts[run_id] = time.perf_counter()
+                        _trace("node_start", name=chain_name)
+                    continue
+
+                if event_type == "on_chain_end":
+                    chain_name = event.get("name", "")
+                    run_id = event.get("run_id", "")
+                    if chain_name in _GRAPH_NODES and run_id in perf_node_starts:
+                        dur = time.perf_counter() - perf_node_starts.pop(run_id)
+                        extra = {}
+                        # Capture classify output details
+                        if chain_name == "classify":
+                            output = event.get("data", {}).get("output", {})
+                            if isinstance(output, dict):
+                                extra["mode"] = output.get("mode", "")
+                                extra["direct_query"] = output.get("direct_query_name", "")
+                                extra["direct_chart"] = output.get("direct_chart_name", "")
+                                extra["po_intent"] = output.get("po_intent", False)
+                                max_tools = (output.get("mode_config") or {}).get("max_tool_calls", 0)
+                                extra["max_tool_calls"] = max_tools
+                        _trace("node_end", name=chain_name, duration=round(dur, 4), **extra)
+                    continue
+
                 # ── PERF: Track LLM call start ──
                 if event_type == "on_chat_model_start":
                     perf_llm_call_count += 1
                     run_id = event.get("run_id", "")
                     now = time.perf_counter()
                     perf_llm_call_starts[run_id] = now
+                    _trace("llm_start", call_number=perf_llm_call_count)
                     if perf_llm_call_count == 1:
                         dur = now - perf_graph_start
                         logger.info("PERF_LOG: [Request Received -> First LLM Call] - %.3fs", dur)
@@ -182,6 +250,7 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
                         llm_dur = now - llm_start
                         logger.info("PERF_LOG: [LLM Call #%d] - %.3fs", perf_llm_call_count, llm_dur)
                         await _emit_perf(f"LLM Call #{perf_llm_call_count}", llm_dur)
+                        _trace("llm_end", call_number=perf_llm_call_count, duration=round(llm_dur, 4))
                     continue
 
                 # Log tool activity
@@ -207,6 +276,7 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
                             await _emit_perf("Graph Start -> First Tool Call", elapsed)
 
                     logger.info("Tool: %s(%s) [thread=%s]", tool_name, tool_input, thread_id)
+                    _trace("tool_start", name=tool_name, input=tool_input)
 
                     status_text = _TOOL_STATUS.get(tool_name)
                     if status_text:
@@ -227,6 +297,8 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
                         logger.info("PERF_LOG: [Tool: %s] - %.3fs", tool_name, tool_dur)
                         await _emit_perf(f"Tool: {tool_name}", tool_dur)
                     logger.info("Tool done: %s -> %s", tool_name, output_preview)
+                    if tool_start:
+                        _trace("tool_end", name=tool_name, duration=round(tool_dur, 4), output_preview=output_preview)
 
                     # Capture SQL from sql_query tool calls
                     if tool_name == "sql_query":
@@ -238,6 +310,7 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
                             sql = tool_input.strip()
                         if sql:
                             pending_sqls.append(sql)
+
                     continue
 
                 if event_type != "on_chat_model_stream":
@@ -269,15 +342,18 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
                         sql_injected = True
                         for sql in pending_sqls:
                             await queue.put(f"```sql\n{sql}\n```\n\n")
+
                     await queue.put(text)
                     any_text_emitted = True
 
         except GraphInterrupt:
             # Expected for HITL — the graph paused at hitl_gate
             logger.info("Graph interrupted (HITL gate) for thread %s", thread_id)
+            _trace("hitl_interrupt")
         except Exception as exc:
             logger.exception("Graph error for thread %s", thread_id)
             agent_error.append(exc)
+            _trace("error", message=str(exc)[:200])
         finally:
             # Fallback for non-streaming nodes (fast_response path)
             if not any_text_emitted:
@@ -299,6 +375,10 @@ async def _stream_graph_inner(graph, message: str, thread_id: str) -> AsyncItera
             await _emit_perf("Total Tool Execution", total_tool, tool_count=len(perf_tool_times))
             await _emit_perf("Estimated LLM Time", llm_time)
             await _emit_perf("Total Graph Duration", total)
+
+            # ── Emit collected trace events ──
+            _trace("graph_end", total_duration=round(total, 4))
+            await queue.put(TRACE_PREFIX + json.dumps(trace_events))
 
     # Launch as background task
     async def _wrapped():
