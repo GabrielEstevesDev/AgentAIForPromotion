@@ -2,7 +2,7 @@ import json
 import sqlite3
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..db import get_connection
@@ -10,8 +10,25 @@ from ..db import get_connection
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 
+def _ensure_session_column() -> None:
+    """Add sessionId column to Conversation table if it doesn't exist."""
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "ALTER TABLE Conversation ADD COLUMN sessionId TEXT DEFAULT NULL"
+            )
+            conn.commit()
+    except sqlite3.OperationalError:
+        # Column already exists — ignore
+        pass
+
+
+_ensure_session_column()
+
+
 class ConversationCreate(BaseModel):
     title: str = "New conversation"
+    sessionId: str | None = None
 
 
 class ConversationUpdate(BaseModel):
@@ -28,16 +45,27 @@ def _handle_missing_table(exc: sqlite3.OperationalError) -> None:
 
 
 @router.get("")
-def list_conversations() -> list[dict]:
+def list_conversations(sessionId: str | None = Query(default=None)) -> list[dict]:
     try:
         with get_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, title, createdAt, updatedAt
-                FROM Conversation
-                ORDER BY updatedAt DESC
-                """
-            ).fetchall()
+            if sessionId:
+                rows = conn.execute(
+                    """
+                    SELECT id, title, createdAt, updatedAt
+                    FROM Conversation
+                    WHERE sessionId = ?
+                    ORDER BY updatedAt DESC
+                    """,
+                    (sessionId,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT id, title, createdAt, updatedAt
+                    FROM Conversation
+                    ORDER BY updatedAt DESC
+                    """
+                ).fetchall()
             return rows
     except sqlite3.OperationalError as exc:
         _handle_missing_table(exc)
@@ -50,10 +78,10 @@ def create_conversation(payload: ConversationCreate) -> dict:
             conversation_id = str(uuid.uuid4())
             conn.execute(
                 """
-                INSERT INTO Conversation (id, title, createdAt, updatedAt)
-                VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                INSERT INTO Conversation (id, title, sessionId, createdAt, updatedAt)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """,
-                (conversation_id, payload.title),
+                (conversation_id, payload.title, payload.sessionId),
             )
             row = conn.execute(
                 """
@@ -228,12 +256,27 @@ def get_message_trace(conversation_id: str, message_id: str) -> dict:
 def delete_conversation(conversation_id: str) -> dict:
     try:
         with get_connection() as conn:
-            cursor = conn.execute(
+            # Check existence first
+            row = conn.execute(
+                "SELECT id FROM Conversation WHERE id = ?",
+                (conversation_id,),
+            ).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Conversation not found.")
+
+            # Delete in FK-safe order: traces → messages → conversation
+            conn.execute(
+                "DELETE FROM MessageTrace WHERE conversationId = ?",
+                (conversation_id,),
+            )
+            conn.execute(
+                "DELETE FROM Message WHERE conversationId = ?",
+                (conversation_id,),
+            )
+            conn.execute(
                 "DELETE FROM Conversation WHERE id = ?",
                 (conversation_id,),
             )
-            if cursor.rowcount == 0:
-                raise HTTPException(status_code=404, detail="Conversation not found.")
             conn.commit()
             return {"ok": True}
     except sqlite3.OperationalError as exc:

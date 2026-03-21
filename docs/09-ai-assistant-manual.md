@@ -8,7 +8,7 @@ This document describes the capabilities, limitations, escalation logic, and int
 
 ## Assistant Identity
 
-**Name:** Aria (Adaptive Retail Intelligence Assistant)
+**Name:** AgenticStack
 **Powered by:** Large Language Model with RAG (Retrieval-Augmented Generation)
 **Primary Interface:** Chat widget (web + mobile), email response drafting
 **Languages supported:** English (primary), French, Spanish (beta)

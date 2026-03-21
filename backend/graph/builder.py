@@ -1,4 +1,4 @@
-"""Build the Aria StateGraph."""
+"""Build the AgenticStack StateGraph."""
 
 import logging
 
@@ -22,13 +22,13 @@ from .nodes import (
     summarize_if_needed,
     validate,
 )
-from .state import AriaState
+from .state import AgenticStackState
 
 logger = logging.getLogger(__name__)
 
 
 def build_graph():
-    """Build and compile the Aria StateGraph with MemorySaver checkpointer.
+    """Build and compile the AgenticStack StateGraph with MemorySaver checkpointer.
 
     Graph topology:
         START → summarize_if_needed → classify ─┬─ (greeting)      → fast_response → END
@@ -43,7 +43,7 @@ def build_graph():
                                                                                                    └─ (text)       → extract_hitl → ... → validate → END
                                               └─ (no hitl)     → assemble_response → validate → END
     """
-    graph = StateGraph(AriaState)
+    graph = StateGraph(AgenticStackState)
 
     # Add nodes
     graph.add_node("summarize_if_needed", summarize_if_needed)
@@ -112,5 +112,5 @@ def build_graph():
     memory = MemorySaver()
     compiled = graph.compile(checkpointer=memory)
 
-    logger.info("Aria StateGraph compiled successfully")
+    logger.info("AgenticStack StateGraph compiled successfully")
     return compiled

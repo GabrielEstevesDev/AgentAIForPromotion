@@ -32,8 +32,11 @@ export type ChatMessage = {
   trace?: TraceEvent[];
 };
 
-export async function getConversations(): Promise<ConversationSummary[]> {
-  const response = await fetch(`${API_BASE}/conversations`, {
+export async function getConversations(sessionId?: string): Promise<ConversationSummary[]> {
+  const url = sessionId
+    ? `${API_BASE}/conversations?sessionId=${encodeURIComponent(sessionId)}`
+    : `${API_BASE}/conversations`;
+  const response = await fetch(url, {
     cache: "no-store",
   });
 

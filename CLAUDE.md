@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Aria** is a full-stack AI-powered e-commerce assistant designed as a demo-ready product for potential clients.
+**AgenticStack** is a full-stack AI-powered e-commerce assistant designed as a demo-ready product for potential clients.
 
 - **Frontend**: Next.js 15 (App Router) with React 19, Tailwind CSS 4, Vercel AI SDK (`useChat`). Port **3000**.
 - **Backend**: FastAPI with SSE streaming, wrapping an **explicit LangGraph StateGraph agent** backed by `gpt-4o-mini`. Port **8001**.
@@ -55,17 +55,18 @@ src/                          — Next.js frontend (App Router)
       Sidebar.tsx             — 3-tab nav (Chat/Database/Documents), conversation list
   lib/
     api.ts / server-api.ts    — Client/server fetch helpers
+    session.ts                — Per-tab session ID (sessionStorage UUID)
     parsers.ts                — JSON block extraction (USE_CASE_CARDS, HITL_REQUEST)
 
 backend/                      — FastAPI backend (Python)
   main.py                     — App, CORS, lifespan, structlog, RequestIdMiddleware
   agent.py                    — Facade: delegates to graph/ or agent_legacy.py
-  mode_classifier.py          — Mode classifier (greeting/direct_query/factual/analytical/chart/hitl/rag/prospecting)
+  mode_classifier.py          — Mode classifier (greeting/direct_query/off_topic/factual/analytical/chart/hitl/rag/prospecting) + jailbreak & vague-prompt detection
   validators.py               — Post-processing: coherence check, HITL validation, length monitoring
   config.py                   — All settings (LLM_MODEL, DB_PATH, etc.)
   db.py                       — SQLite connection (dict_factory, WAL, 30s timeout)
   graph/
-    state.py                  — AriaState TypedDict
+    state.py                  — AgenticStackState TypedDict
     nodes.py                  — Node functions + Runnable chains (plan_and_call, force_respond, post_approve)
     edges.py                  — Conditional routing
     builder.py                — build_graph() with MemorySaver
@@ -96,7 +97,7 @@ dev.db                        — SQLite database (Prisma-generated schema)
 2. FastAPI runs the StateGraph:
    - **summarize_if_needed**: Condenses conversations > 12 messages
    - **classify**: Sets response mode, detects HITL/PO intent, checks for direct query or greeting match
-   - **Fast lanes** (no LLM): greeting → `fast_response` → END; direct_query → `direct_query` → END
+   - **Fast lanes** (no LLM): greeting → `fast_response` → END; direct_query → `direct_query` → END; off_topic (jailbreaks, vague prompts) → `fast_response` → END; chart → `direct_chart` → END
    - **plan_and_call**: LLM with tools → **execute_tools** → loops until `tool_call_count >= max_tool_calls` → **force_respond** (LLM without tools)
    - **extract_hitl** → **hitl_gate** (calls `interrupt()` if HITL detected) → **assemble_response** → **validate**
 3. `stream.py` injects SQL blocks, emits heartbeats, tracks performance metrics
@@ -123,6 +124,12 @@ Each assistant message can have trace data showing the full graph execution path
 **Use Cases Drawer**: 5 tabs (SQL, RAG, WEB, Charts, Approval). Internal ID `"HITL"` displays as `"Approval"` via `BADGE_LABELS`.
 
 **Purchase Orders**: Full lifecycle (Draft → Approved → Sent → Received). `purchase_order_action` tool blocked unless PO intent + approval. Demo mode auto-receives on approve.
+
+**Rate Limiting**: Per-user and global daily rate limits protect API costs for the public demo. Backend checks run in `routers/chat.py` before agent execution, using the `RateLimit` SQLite table with IP-based user identification (`request.client.host`). Returns HTTP 429 with structured JSON (`global_limit` / `user_limit`). Admin bypass via `x-admin-token` header matched against `ADMIN_SECRET_TOKEN` env var. Frontend intercepts 429 errors in `ConversationClient.tsx` (`onError` + `hadStreamErrorRef` to prevent navigation on error) and renders styled `RateLimitBanner` in `ChatArea.tsx` (amber for user limit, blue for global limit). Admin token read from `localStorage("adminToken")`.
+
+**Session Isolation**: Per-tab conversation isolation for the public demo. Each browser tab generates a UUID stored in `sessionStorage` (`src/lib/session.ts`). The `Conversation` table has a `sessionId` column; `list_conversations` filters by it. Closing a tab = blank slate. Old conversations with `NULL` sessionId are hidden and GC'd within 24h. This is UX isolation, not a security boundary.
+
+**Prompt Injection Defense**: 2-layer defense-in-depth. Layer 1: `mode_classifier.py` regex patterns catch jailbreak/persona-injection/prompt-extraction attempts and route to off-topic fast lane (no LLM, no tools). Layer 2: `system_prompt.py` security shield instructs the LLM to politely redirect novel bypasses without acknowledging internal configuration.
 
 ### Streaming Architecture Note
 
@@ -154,7 +161,7 @@ SQLite (`dev.db`), Prisma-generated **camelCase columns**.
 - Never expose UUIDs/SKUs in customer-facing content
 - `db.py` uses `dict_factory` — always use `row["key"]`, never positional
 
-**Tables:** `Customer`, `Product`, `"Order"`, `OrderItem`, `Inventory`, `Review`, `ApiUsage`, `Supplier`, `PurchaseOrder`, `PurchaseOrderItem`, `Conversation`, `Message`, `MessageTrace`
+**Tables:** `Customer`, `Product`, `"Order"`, `OrderItem`, `Inventory`, `Review`, `ApiUsage`, `Supplier`, `PurchaseOrder`, `PurchaseOrderItem`, `Conversation`, `Message`, `MessageTrace`, `RateLimit`
 
 **Seed data:** 60 customers, 240 products (12 categories), 80 orders, ~800 reviews, 1 supplier.
 
@@ -166,6 +173,9 @@ SQLite (`dev.db`), Prisma-generated **camelCase columns**.
 | `DB_PATH` | `../dev.db` | SQLite path (relative to `agent/`) |
 | `USE_LEGACY_AGENT` | `False` | Set `True` for old create_react_agent |
 | `BACKEND_BASE_URL` | `http://127.0.0.1:8001` | Used by python_tool for chart URLs |
+| `ADMIN_SECRET_TOKEN` | `""` | Admin token for rate-limit bypass |
+| `RATE_LIMIT_GLOBAL` | `100` | Max daily messages across all users |
+| `RATE_LIMIT_USER` | `10` | Max daily messages per IP address |
 
 Frontend backend URL: `src/lib/backend.ts` (`http://localhost:8001`).
 
@@ -173,6 +183,8 @@ Frontend backend URL: `src/lib/backend.ts` (`http://localhost:8001`).
 
 - **Direct query routing**: 23 regex patterns in `mode_classifier.py` skip LLM entirely for simple questions
 - **Greeting fast lane**: Canned responses, no LLM call
+- **Off-topic / security fast lane**: Jailbreak attempts, prompt injection, and vague prompts routed to canned off-topic response (no LLM, no tools)
+- **Chart fast lane**: Chart requests routed to `direct_chart` node, skipping `plan_and_call`
 - **Conversation summarization**: Condenses older messages when > 12 messages
 - **Result caching**: 60s TTL in `sql_tool.py` and `query_library.py`
 - **Async SQLite**: `aiosqlite` for non-blocking DB access
@@ -180,6 +192,7 @@ Frontend backend URL: `src/lib/backend.ts` (`http://localhost:8001`).
 - **Prompt prefix caching**: Core prompt as separate SystemMessage enables OpenAI caching
 - **Structured logging**: `structlog` with `X-Request-ID` tracing
 - **Perf events**: `stream.py` emits TTFT, LLM time, tool time, graph duration via SSE
+- **Rate limiting**: IP-based daily limits (per-user + global) checked before agent execution, avoids unnecessary LLM calls
 
 ## Common Tasks
 
@@ -193,3 +206,4 @@ Frontend backend URL: `src/lib/backend.ts` (`http://localhost:8001`).
 - **Run eval harness**: `"agent/.venv/Scripts/python.exe" backend/tests/eval_prompts.py` (backend must be running)
 - **Export conversations + traces**: `"agent/.venv/Scripts/python.exe" backend/scripts/export_traces.py`
 - **Test the app**: Start both servers, use Playwright MCP to navigate to `http://localhost:3000`
+- **Adjust rate limits**: Set `RATE_LIMIT_GLOBAL` and `RATE_LIMIT_USER` env vars (or edit `backend/config.py`). Set `ADMIN_SECRET_TOKEN` for admin bypass. Store admin token in browser via `localStorage.setItem("adminToken", "<token>")`

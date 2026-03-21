@@ -35,10 +35,10 @@ def new_session() -> tuple[list, str]:
     return [], str(uuid.uuid4())
 
 
-with gr.Blocks(title="Aria — E-Commerce AI Agent") as demo:
+with gr.Blocks(title="AgenticStack — E-Commerce AI Agent") as demo:
     thread_id = gr.State(value=str(uuid.uuid4()))
 
-    gr.Markdown("# Aria — E-Commerce AI Agent")
+    gr.Markdown("# AgenticStack — E-Commerce AI Agent")
     gr.Markdown("Powered by **LangGraph · GPT-4o-mini · RAG · SQL · Web Search · Python**")
 
     chatbot = gr.Chatbot(height=500, label="Conversation")

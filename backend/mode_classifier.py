@@ -1,4 +1,4 @@
-"""Response-mode classifier for Aria.
+"""Response-mode classifier for AgenticStack.
 
 Classifies user messages into response modes BEFORE the agent runs.
 Each mode sets: max_tokens, max_tool_calls, and a mode-specific instruction
@@ -63,7 +63,19 @@ _DATA_REQUEST_PATTERN = re.compile(
 
 _OFF_TOPIC_PATTERN = re.compile(
     r"(capital\s+of|prime\s+minister|president\s+of|weather\s+in|translate\s+"
-    r"|recipe\s+for|solve\s+this\s+(math|equation)|who\s+won|sports?\s+score)",
+    r"|recipe\s+for|solve\s+this\s+(math|equation)|who\s+won|sports?\s+score"
+    r"|you\s+are\s+now\b|ignore\s+(all\s+)?(previous\s+)?(instructions|rules)"
+    r"|act\s+as\s+(if\s+)?you|pretend\s+(you|to\s+be)|roleplay\s+as"
+    r"|bypass\s+(all\s+)?|jailbreak|do\s+anything\s+now|ignore\s+safety"
+    r"|print\s+(your\s+)?(full\s+)?(system|internal)|reveal\s+(your\s+)?instructions"
+    r"|show\s+(me\s+)?(your\s+)?(prompt|instructions))",
+    re.IGNORECASE,
+)
+
+_VAGUE_PATTERN = re.compile(
+    r"^(tell\s+me\s+(stuff|something|things|about\s+it)"
+    r"|just\s+do\s+something|do\s+something|show\s+me\s+stuff"
+    r"|anything|idk|whatever|something\s+interesting)[\s?!.]*$",
     re.IGNORECASE,
 )
 
@@ -259,6 +271,9 @@ def classify_mode(message: str) -> ResponseMode:
 
     # Obvious non-commerce prompts should not spend tool budget.
     if _OFF_TOPIC_PATTERN.search(message):
+        return MODES["off_topic"]
+
+    if _VAGUE_PATTERN.match(stripped):
         return MODES["off_topic"]
 
     # HITL triggers take priority — they have the most complex workflow

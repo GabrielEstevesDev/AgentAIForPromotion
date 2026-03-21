@@ -36,7 +36,7 @@ def new_config() -> dict:
 
 def print_banner():
     print("\n" + "═" * 60)
-    print("  Aria — E-Commerce AI Agent")
+    print("  AgenticStack — E-Commerce AI Agent")
     print("  Powered by LangGraph + GPT-4o-mini")
     print("  Type /tools, /reset, or /exit")
     print("═" * 60 + "\n")
@@ -84,9 +84,9 @@ def run():
             # Extract the last AI message
             ai_messages = [m for m in result["messages"] if isinstance(m, AIMessage)]
             if ai_messages:
-                print(f"\nAria: {ai_messages[-1].content}\n")
+                print(f"\nAgenticStack: {ai_messages[-1].content}\n")
             else:
-                print("\nAria: (no response)\n")
+                print("\nAgenticStack: (no response)\n")
 
         except Exception as e:
             print(f"\n[Error] {e}\n")

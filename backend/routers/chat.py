@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from ..agent import stream_agent
-from ..config import LLM_MODEL
+from ..config import ADMIN_SECRET_TOKEN, LLM_MODEL, RATE_LIMIT_GLOBAL, RATE_LIMIT_USER
 from ..db import get_connection
 from ..validators import check_summary_breakdown_coherence, validate_hitl_structure
 
@@ -70,8 +70,77 @@ def _ensure_trace_table() -> None:
         pass  # Best effort
 
 
-# Ensure table exists on module load
+# Ensure tables exist on module load
 _ensure_trace_table()
+
+
+def _ensure_rate_limit_table() -> None:
+    """Create the RateLimit table if it doesn't exist."""
+    try:
+        with get_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS RateLimit (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    userIdentifier TEXT NOT NULL,
+                    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+    except Exception:
+        pass
+
+
+_ensure_rate_limit_table()
+
+
+def _check_rate_limit(request: Request) -> None:
+    """Check global and per-user rate limits. Raises HTTPException(429) if exceeded."""
+    # Admin bypass
+    admin_token = request.headers.get("x-admin-token", "")
+    if ADMIN_SECRET_TOKEN and admin_token == ADMIN_SECRET_TOKEN:
+        return
+
+    user_ip = request.client.host if request.client else "unknown"
+
+    with get_connection() as conn:
+        global_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM RateLimit WHERE date(createdAt) = date('now')"
+        ).fetchone()
+        if global_count and global_count["cnt"] >= RATE_LIMIT_GLOBAL:
+            raise HTTPException(
+                status_code=429,
+                detail=json.dumps({
+                    "error": "global_limit",
+                    "message": f"The platform has reached its daily capacity of {RATE_LIMIT_GLOBAL} messages. To keep this demo running smoothly, please try again tomorrow.",
+                }),
+            )
+
+        user_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM RateLimit WHERE userIdentifier = ? AND date(createdAt) = date('now')",
+            (user_ip,),
+        ).fetchone()
+        if user_count and user_count["cnt"] >= RATE_LIMIT_USER:
+            raise HTTPException(
+                status_code=429,
+                detail=json.dumps({
+                    "error": "user_limit",
+                    "message": f"You've reached your daily limit of {RATE_LIMIT_USER} messages for this demo. Please come back tomorrow to try again!",
+                }),
+            )
+
+
+def _record_rate_limit(request: Request) -> None:
+    """Insert a rate-limit row for the current request."""
+    user_ip = request.client.host if request.client else "unknown"
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO RateLimit (userIdentifier) VALUES (?)",
+                (user_ip,),
+            )
+            conn.commit()
+    except Exception:
+        pass
 
 
 def _persist_messages(
@@ -188,10 +257,16 @@ async def chat(payload: ChatRequest, request: Request) -> EventSourceResponse:
     if last_message.role != "user":
         raise HTTPException(status_code=400, detail="The last message must be from the user.")
 
+    # Rate-limit check (before any LLM work)
+    _check_rate_limit(request)
+
     agent = request.app.state.agent
     user_content = last_message.content.strip()
     if not user_content:
         raise HTTPException(status_code=400, detail="User message cannot be empty.")
+
+    # Record usage after validation passes
+    _record_rate_limit(request)
 
     setup_dur = time.perf_counter() - request_start
     logger.info("PERF_LOG: [FastAPI Request Setup] - %.4fs", setup_dur)

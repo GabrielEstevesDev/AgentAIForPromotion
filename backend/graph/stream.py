@@ -1,4 +1,4 @@
-"""Streaming function for the Aria StateGraph.
+"""Streaming function for the AgenticStack StateGraph.
 
 Replaces the 300-line stream_agent() in the old agent.py. Responsibilities:
 - astream_events() consumer that yields text tokens from on_chat_model_stream
@@ -49,6 +49,21 @@ def _get_thread_lock(thread_id: str) -> asyncio.Lock:
     if thread_id not in _thread_locks:
         _thread_locks[thread_id] = asyncio.Lock()
     return _thread_locks[thread_id]
+
+
+def cleanup_thread_locks(thread_ids: list[str]) -> int:
+    """Remove stale entries from _thread_locks for deleted threads.
+
+    Only removes locks that are not currently held.
+    Returns the number of locks removed.
+    """
+    removed = 0
+    for tid in thread_ids:
+        lock = _thread_locks.get(tid)
+        if lock is not None and not lock.locked():
+            del _thread_locks[tid]
+            removed += 1
+    return removed
 
 
 def _extract_text(token) -> str:
@@ -102,7 +117,7 @@ def _parse_hitl_response(content: str) -> dict:
 
 
 async def stream_graph(graph, message: str, thread_id: str) -> AsyncIterator[str]:
-    """Stream tokens from the Aria StateGraph.
+    """Stream tokens from the AgenticStack StateGraph.
 
     Args:
         graph: Compiled StateGraph instance.

@@ -1,4 +1,4 @@
-"""Conditional routing edges for the Aria StateGraph."""
+"""Conditional routing edges for the AgenticStack StateGraph."""
 
 import logging
 

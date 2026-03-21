@@ -96,10 +96,10 @@ TESTS = [
         "optional_tools": [],
         "forbidden_tools": ["sql_query", "web_search", "python_executor"],
         "required": [],
-        "required_any": [["aria", "assistant", "ai", "help"]],
+        "required_any": [["agenticstack", "assistant", "ai", "help"]],
         "forbidden": [],
         "max_response_length": 800,
-        "notes": "Identity greeting — should introduce as Aria",
+        "notes": "Identity greeting — should introduce as AgenticStack",
     },
 
     # ── Category: Direct Query (fast lane, query_library only, no LLM) ──────
@@ -861,7 +861,7 @@ def evaluate_test(test: dict, result: dict) -> dict:
 def main():
     global BACKEND_URL
 
-    parser = argparse.ArgumentParser(description="Aria Agent Full Evaluation")
+    parser = argparse.ArgumentParser(description="AgenticStack Agent Full Evaluation")
     parser.add_argument("--filter", help="Run only tests whose name contains this string")
     parser.add_argument("--category", help="Run only tests in this category")
     parser.add_argument("--url", default=BACKEND_URL, help="Backend URL")
@@ -881,7 +881,7 @@ def main():
         sys.exit(1)
 
     print("=" * 70)
-    print("Aria Agent — Full Evaluation Harness")
+    print("AgenticStack Agent — Full Evaluation Harness")
     print(f"Backend: {BACKEND_URL}")
     print(f"Tests:   {len(tests_to_run)} / {len(TESTS)}")
     print(f"Time:    {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

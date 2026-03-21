@@ -1,4 +1,4 @@
-"""Lightweight programmatic validators for Aria agent responses.
+"""Lightweight programmatic validators for AgenticStack agent responses.
 
 These run AFTER the full response is assembled, BEFORE persistence.
 They append footnotes or warnings — they never modify the core content.

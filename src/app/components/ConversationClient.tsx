@@ -8,6 +8,7 @@ import { ChatArea } from "@/app/components/ChatArea";
 import { ChatInput } from "@/app/components/ChatInput";
 import { UseCasesDrawer } from "@/app/components/UseCasesDrawer";
 import type { ChatMessage, TraceEvent } from "@/lib/api";
+import { getSessionId } from "@/lib/session";
 import type { UseCaseCardsPayload } from "@/lib/types";
 
 type ConversationClientProps = {
@@ -24,6 +25,10 @@ export function ConversationClient({
   const router = useRouter();
   const [activeConversationId, setActiveConversationId] = useState(initialConversationId);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [rateLimitError, setRateLimitError] = useState<{
+    type: "global_limit" | "user_limit";
+    message: string;
+  } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [useCaseData, setUseCaseData] = useState<UseCaseCardsPayload | null>(null);
   const [resolvedHitlIds, setResolvedHitlIds] = useState<Set<string>>(() => {
@@ -40,6 +45,9 @@ export function ConversationClient({
     return resolved;
   });
 
+  // Track whether onError fired during an append call (ref survives async gaps)
+  const hadStreamErrorRef = useRef(false);
+
   // Trace map: messageId → trace events (populated from initial data + live annotations)
   const traceMapRef = useRef<Map<string, TraceEvent[]>>(new Map());
   // Populate from initial messages on first render
@@ -55,17 +63,38 @@ export function ConversationClient({
 
   useEffect(() => {
     setActiveConversationId(initialConversationId);
+    if (initialConversationId) {
+      sessionStorage.setItem("ephemeral_conversation_id", initialConversationId);
+    }
   }, [initialConversationId]);
+
+  // Read admin token from localStorage for rate-limit bypass
+  const adminToken = typeof window !== "undefined" ? localStorage.getItem("adminToken") : null;
 
   const { messages, input, setInput, append, status, error } = useChat({
     api: "/api/chat",
     id: initialConversationId,
+    headers: adminToken ? { "x-admin-token": adminToken } : undefined,
     initialMessages: initialMessages.map((message, index) => ({
       id: message.id ?? `${message.role}-${index}`,
       role: message.role,
       content: message.content,
     })),
     body: activeConversationId ? { conversationId: activeConversationId } : undefined,
+    onError: (err) => {
+      // Flag that an error occurred (checked after await append to skip navigation)
+      hadStreamErrorRef.current = true;
+      // Intercept rate-limit errors to show styled banner instead of raw JSON
+      try {
+        const parsed = JSON.parse(err.message);
+        if (parsed.error === "global_limit" || parsed.error === "user_limit") {
+          setRateLimitError({ type: parsed.error, message: parsed.message });
+          return;
+        }
+      } catch {
+        // Not a rate-limit error — let default handling proceed
+      }
+    },
     onFinish: (message) => {
       // Extract trace from annotations on the finished message
       const annotations = (message as unknown as Record<string, unknown>).annotations;
@@ -158,9 +187,24 @@ export function ConversationClient({
   );
 
   const renderedMessages = useMemo(() => {
+    // Don't show raw error bubble when it's a rate-limit error (handled by banner)
+    if (rateLimitError) {
+      return uiMessages;
+    }
+
     const message = submitError ?? error?.message;
     if (!message) {
       return uiMessages;
+    }
+
+    // Also suppress if the error message looks like rate-limit JSON
+    try {
+      const parsed = JSON.parse(message);
+      if (parsed.error === "global_limit" || parsed.error === "user_limit") {
+        return uiMessages;
+      }
+    } catch {
+      // Not JSON, show as regular error
     }
 
     return [
@@ -171,7 +215,7 @@ export function ConversationClient({
         content: `Error: ${message}`,
       },
     ];
-  }, [error?.message, submitError, uiMessages]);
+  }, [error?.message, rateLimitError, submitError, uiMessages]);
 
   async function handleSubmit() {
     const prompt = input.trim();
@@ -185,6 +229,7 @@ export function ConversationClient({
     let createdConversationId: string | null = null;
     try {
       setSubmitError(null);
+      setRateLimitError(null);
 
       if (!conversationId) {
         const response = await fetch("/api/conversations", {
@@ -192,6 +237,7 @@ export function ConversationClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: prompt.slice(0, 60) || "New conversation",
+            sessionId: getSessionId() || undefined,
           }),
         });
 
@@ -203,8 +249,10 @@ export function ConversationClient({
         conversationId = conversation.id;
         createdConversationId = conversationId;
         setActiveConversationId(conversationId);
+        sessionStorage.setItem("ephemeral_conversation_id", conversationId);
       }
 
+      hadStreamErrorRef.current = false;
       await append(
         {
           role: "user",
@@ -217,15 +265,38 @@ export function ConversationClient({
         },
       );
 
-      if (createdConversationId) {
+      // Navigate only after successful append — never on error,
+      // because router.refresh() remounts the component and wipes state.
+      // hadStreamErrorRef catches errors that flow through onError (e.g. 429)
+      // without causing append to throw.
+      if (createdConversationId && !hadStreamErrorRef.current) {
         router.replace(`/chat/${createdConversationId}`);
         router.refresh();
       }
     } catch (submitError) {
+      // Restore input so the user can retry
       setInput(prompt);
 
       const detail =
         submitError instanceof Error ? submitError.message : "Failed to send the message.";
+
+      // Detect rate-limit errors from the 429 JSON response
+      try {
+        const parsed = JSON.parse(detail);
+        if (
+          parsed.error === "global_limit" ||
+          parsed.error === "user_limit"
+        ) {
+          setRateLimitError({
+            type: parsed.error,
+            message: parsed.message,
+          });
+          return;
+        }
+      } catch {
+        // Not JSON — fall through to generic error
+      }
+
       setSubmitError(detail);
     }
   }
@@ -268,6 +339,7 @@ export function ConversationClient({
         onUseCaseCards={handleUseCaseCards}
         onOpenDrawer={() => setDrawerOpen(true)}
         resolvedHitlIds={resolvedHitlIds}
+        rateLimitError={rateLimitError}
       />
       <ChatInput
         conversationId={initialConversationId}

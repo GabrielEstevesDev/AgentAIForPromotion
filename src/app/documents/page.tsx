@@ -1,9 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Download, FileText, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FileText, Loader2 } from "lucide-react";
 
 type DocInfo = {
   filename: string;
@@ -22,9 +20,7 @@ function formatFileSize(bytes: number): string {
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<DocInfo[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
-  const [content, setContent] = useState<string | null>(null);
   const [loadingDocs, setLoadingDocs] = useState(true);
-  const [loadingContent, setLoadingContent] = useState(false);
 
   useEffect(() => {
     async function fetchDocs() {
@@ -45,26 +41,10 @@ export default function DocumentsPage() {
     void fetchDocs();
   }, []);
 
-  const fetchContent = useCallback(async (filename: string) => {
-    setLoadingContent(true);
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/documents/${filename}`);
-      const data = await res.json();
-      setContent(data.content ?? "");
-    } catch {
-      setContent(null);
-    } finally {
-      setLoadingContent(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (selectedDoc) {
-      void fetchContent(selectedDoc);
-    }
-  }, [selectedDoc, fetchContent]);
-
   const selectedInfo = documents.find((d) => d.filename === selectedDoc);
+  const pdfUrl = selectedDoc
+    ? `${BACKEND_URL}/api/documents/${selectedDoc}/pdf`
+    : null;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -83,16 +63,10 @@ export default function DocumentsPage() {
             </p>
           </div>
         </div>
-        {selectedDoc && (
-          <a
-            href={`${BACKEND_URL}/api/documents/${selectedDoc}/pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          >
-            <Download size={14} />
-            Download PDF
-          </a>
+        {selectedInfo && (
+          <span className="text-xs text-[var(--muted)]">
+            {selectedInfo.title} &middot; {formatFileSize(selectedInfo.size)}
+          </span>
         )}
       </header>
 
@@ -144,39 +118,22 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        {/* Main content area */}
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {loadingContent ? (
+        {/* PDF viewer */}
+        <div className="flex flex-1 flex-col overflow-hidden bg-[var(--background)]">
+          {loadingDocs ? (
             <div className="flex flex-1 items-center justify-center">
-              <Loader2
-                size={24}
-                className="animate-spin text-[var(--accent)]"
-              />
+              <Loader2 size={24} className="animate-spin text-[var(--accent)]" />
             </div>
-          ) : content != null ? (
-            <div className="flex-1 overflow-y-auto px-8 py-6">
-              {selectedInfo && (
-                <div className="mb-6">
-                  <h2 className="text-xl font-semibold text-[var(--foreground)]">
-                    {selectedInfo.title || selectedInfo.filename}
-                  </h2>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    {selectedInfo.filename} &middot;{" "}
-                    {formatFileSize(selectedInfo.size)}
-                  </p>
-                </div>
-              )}
-              <article
-                className="prose prose-sm max-w-none leading-7 prose-headings:text-[var(--foreground)] prose-p:text-[var(--foreground)] prose-strong:text-[var(--foreground)] prose-code:text-[var(--accent)] prose-a:text-[var(--accent)] prose-li:text-[var(--foreground)]"
-              >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {content}
-                </ReactMarkdown>
-              </article>
-            </div>
+          ) : pdfUrl ? (
+            <iframe
+              key={pdfUrl}
+              src={pdfUrl}
+              className="h-full w-full flex-1 border-0"
+              title={selectedInfo?.title ?? "Document"}
+            />
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-[var(--muted)]">
-              Select a document to view its content.
+              Select a document to view it.
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-"""Node functions and Runnable chains for the Aria StateGraph."""
+"""Node functions and Runnable chains for the AgenticStack StateGraph."""
 
 import json
 import logging
@@ -583,20 +583,20 @@ def classify(state: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 _GREETING_RESPONSES = {
-    "hello": "Hello! I'm Aria, your e-commerce assistant. How can I help you today?",
-    "hi": "Hello! I'm Aria, your e-commerce assistant. How can I help you today?",
-    "hey": "Hey! I'm Aria, your e-commerce assistant. How can I help you today?",
+    "hello": "Hello! I'm AgenticStack, your e-commerce assistant. How can I help you today?",
+    "hi": "Hello! I'm AgenticStack, your e-commerce assistant. How can I help you today?",
+    "hey": "Hey! I'm AgenticStack, your e-commerce assistant. How can I help you today?",
     "thanks": "You're welcome! Let me know if you need anything else.",
     "thank you": "You're welcome! Let me know if you need anything else.",
     "ok": "Got it! Let me know if you need anything else.",
     "okay": "Got it! Let me know if you need anything else.",
     "got it": "Got it! Let me know if you need anything else.",
     "sure": "Sure thing! What would you like to do next?",
-    "who are you": "I'm Aria, an AI-powered e-commerce assistant. I can analyze sales data, search our knowledge base, create charts, and manage purchase orders with approval workflows.",
-    "what can you do": "I'm Aria, an AI-powered e-commerce assistant. I can analyze sales data, search our knowledge base, create charts, and manage purchase orders with approval workflows.",
-    "what are you": "I'm Aria, an AI-powered e-commerce assistant. I can analyze sales data, search our knowledge base, create charts, and manage purchase orders with approval workflows.",
+    "who are you": "I'm AgenticStack, an AI-powered e-commerce assistant. I can analyze sales data, search our knowledge base, create charts, and manage purchase orders with approval workflows.",
+    "what can you do": "I'm AgenticStack, an AI-powered e-commerce assistant. I can analyze sales data, search our knowledge base, create charts, and manage purchase orders with approval workflows.",
+    "what are you": "I'm AgenticStack, an AI-powered e-commerce assistant. I can analyze sales data, search our knowledge base, create charts, and manage purchase orders with approval workflows.",
 }
-_GREETING_DEFAULT = "Hello! I'm Aria, your e-commerce assistant. How can I help you today?"
+_GREETING_DEFAULT = "Hello! I'm AgenticStack, your e-commerce assistant. How can I help you today?"
 _OFF_TOPIC_RESPONSE = (
     "I'm focused on the e-commerce demo workspace. Ask me about sales, products, "
     "orders, inventory, policies, charts, or approval workflows."

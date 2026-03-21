@@ -1,5 +1,5 @@
 """
-Performance benchmark for the Aria agent.
+Performance benchmark for the AgenticStack agent.
 
 Measures granular timing metrics via backend-emitted PERF SSE events:
   - Mode classification time
@@ -557,7 +557,7 @@ def save_results(results: list[BenchmarkResult]) -> None:
 
 def main():
     print(f"{_BOLD}{'=' * 70}{_RESET}")
-    print(f"{_BOLD}Aria Agent Performance Benchmark{_RESET}")
+    print(f"{_BOLD}AgenticStack Agent Performance Benchmark{_RESET}")
     print(f"Backend: {BACKEND_URL}")
     print(f"Scenarios: {len(SCENARIOS)}")
     print(f"Timeout: {TIMEOUT}s per scenario")

@@ -10,11 +10,18 @@ import {
   BarChart3,
   Shield,
   LayoutGrid,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 
 import { MessageBubble } from "@/app/components/MessageBubble";
 import type { ChatMessage } from "@/lib/api";
 import type { UseCaseCardsPayload } from "@/lib/types";
+
+type RateLimitError = {
+  type: "global_limit" | "user_limit";
+  message: string;
+};
 
 type ChatAreaProps = {
   title: string;
@@ -25,6 +32,7 @@ type ChatAreaProps = {
   onUseCaseCards?: (payload: UseCaseCardsPayload) => void;
   onOpenDrawer?: () => void;
   resolvedHitlIds?: Set<string>;
+  rateLimitError?: RateLimitError | null;
 };
 
 const CATEGORY_ICONS: Record<string, typeof Database> = {
@@ -113,6 +121,7 @@ export function ChatArea({
   onUseCaseCards,
   onOpenDrawer,
   resolvedHitlIds,
+  rateLimitError,
 }: ChatAreaProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const prevMessagesLengthRef = useRef(messages.length);
@@ -138,6 +147,13 @@ export function ChatArea({
         <div className="border-b border-[var(--border)] pb-3">
           <h2 className="text-base font-semibold tracking-tight truncate">{title}</h2>
         </div>
+
+        {rateLimitError && messages.length === 0 && (
+          <RateLimitBanner
+            type={rateLimitError.type}
+            message={rateLimitError.message}
+          />
+        )}
 
         {messages.length === 0 && !isLoading ? (
           <div className="space-y-4">
@@ -208,7 +224,7 @@ export function ChatArea({
                   <Bot size={18} />
                 </div>
                 <div className="rounded-[1.6rem] border border-[var(--border)] bg-[var(--card)] px-5 py-4 shadow-[0_20px_60px_-45px_rgba(0,0,0,0.65)]">
-                  <div className="mb-3 text-xs uppercase tracking-[0.18em] opacity-80">Aria</div>
+                  <div className="mb-3 text-xs uppercase tracking-[0.18em] opacity-80">AgenticStack</div>
                   <div className="flex gap-1.5 items-center">
                     <span
                       className="h-2 w-2 rounded-full bg-[var(--muted)] animate-bounce"
@@ -227,10 +243,69 @@ export function ChatArea({
               </article>
             )}
 
+            {rateLimitError && (
+              <RateLimitBanner
+                type={rateLimitError.type}
+                message={rateLimitError.message}
+              />
+            )}
+
             <div ref={bottomRef} />
           </div>
         )}
       </div>
     </section>
+  );
+}
+
+function RateLimitBanner({
+  type,
+  message,
+}: {
+  type: "global_limit" | "user_limit";
+  message: string;
+}) {
+  const isGlobal = type === "global_limit";
+  const Icon = isGlobal ? Clock : AlertTriangle;
+
+  const colors = isGlobal
+    ? {
+        border: "border-blue-500/25",
+        bg: "bg-gradient-to-br from-blue-500/10 to-blue-600/5",
+        iconBg: "bg-blue-500/15",
+        icon: "text-blue-400",
+        title: "text-blue-300",
+        badge: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+      }
+    : {
+        border: "border-amber-500/25",
+        bg: "bg-gradient-to-br from-amber-500/10 to-amber-600/5",
+        iconBg: "bg-amber-500/15",
+        icon: "text-amber-400",
+        title: "text-amber-300",
+        badge: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+      };
+
+  const titleText = isGlobal ? "Daily Capacity Reached" : "Daily Limit Reached";
+  const badgeText = isGlobal ? "Platform Limit" : "Per-User Limit";
+
+  return (
+    <div className={`mx-auto w-full max-w-2xl rounded-[1.6rem] border ${colors.border} ${colors.bg} p-6 backdrop-blur shadow-[0_20px_60px_-45px_rgba(0,0,0,0.65)]`}>
+      <div className="flex items-start gap-4">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${colors.iconBg}`}>
+          <Icon size={20} className={colors.icon} />
+        </div>
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2.5">
+            <p className={`text-sm font-semibold ${colors.title}`}>{titleText}</p>
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${colors.badge}`}>
+              {badgeText}
+            </span>
+          </div>
+          <p className="text-sm leading-relaxed text-[var(--muted)]">{message}</p>
+          <p className="text-xs text-[var(--muted)]/60">Limits reset daily at midnight UTC.</p>
+        </div>
+      </div>
+    </div>
   );
 }

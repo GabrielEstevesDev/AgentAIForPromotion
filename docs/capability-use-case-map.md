@@ -1,6 +1,6 @@
 # AI Capability-to-Use-Case Map for Commerce
 
-This document maps Aria's AI capabilities to specific client workflows, pain points, and pilot recommendations. Use this when helping prospects understand what AI can do for their commerce operations.
+This document maps AgenticStack's AI capabilities to specific client workflows, pain points, and pilot recommendations. Use this when helping prospects understand what AI can do for their commerce operations.
 
 ## Capability Map
 

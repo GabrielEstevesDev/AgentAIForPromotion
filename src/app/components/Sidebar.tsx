@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { getConversations, type ConversationSummary } from "@/lib/api";
+import { getSessionId } from "@/lib/session";
 import { ThemeToggle } from "@/app/components/ThemeToggle";
 
 export function Sidebar() {
@@ -37,7 +38,7 @@ export function Sidebar() {
     setIsLoading(true);
     setHasError(false);
     try {
-      const items = await getConversations();
+      const items = await getConversations(getSessionId() || undefined);
       setConversations(items);
     } catch {
       setConversations([]);
@@ -119,6 +120,10 @@ export function Sidebar() {
         current.filter((conversation) => conversation.id !== conversationId),
       );
 
+      const sessionId = sessionStorage.getItem("ephemeral_conversation_id");
+      if (sessionId === conversationId) {
+        sessionStorage.removeItem("ephemeral_conversation_id");
+      }
       if (pathname === `/chat/${conversationId}`) {
         startTransition(() => {
           router.push("/chat");
@@ -157,7 +162,7 @@ export function Sidebar() {
       >
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">Aria</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">AgenticStack</p>
             <h1 className="mt-1 text-xl font-semibold">Assistant Console</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -173,13 +178,18 @@ export function Sidebar() {
           </div>
         </div>
 
-        <Link
-          href="/chat"
+        <button
+          type="button"
+          onClick={() => {
+            sessionStorage.removeItem("ephemeral_conversation_id");
+            router.push("/chat");
+            router.refresh();
+          }}
           className="mb-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-medium text-white transition hover:bg-[var(--accent-strong)]"
         >
           <MessageSquarePlus size={16} />
           New conversation
-        </Link>
+        </button>
 
         {/* Navigation tabs */}
         <nav className="mb-4 flex gap-1 rounded-2xl border border-[var(--sidebar-border)] bg-[var(--card)] p-1.5">

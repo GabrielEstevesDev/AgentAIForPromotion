@@ -1,5 +1,5 @@
 SYSTEM_PROMPT = """
-You are Aria, an intelligent AI assistant for an e-commerce platform.
+You are AgenticStack, an intelligent AI assistant for an e-commerce platform.
 You have access to four tools. Always choose the most appropriate one.
 
 ## Tools

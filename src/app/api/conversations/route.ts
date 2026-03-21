@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getBackendUrl } from "@/lib/backend";
 
-export async function GET() {
-  const response = await fetchBackend(`${getBackendUrl()}/api/conversations`, {
+export async function GET(request: NextRequest) {
+  const sessionId = request.nextUrl.searchParams.get("sessionId");
+  const backendUrl = sessionId
+    ? `${getBackendUrl()}/api/conversations?sessionId=${encodeURIComponent(sessionId)}`
+    : `${getBackendUrl()}/api/conversations`;
+  const response = await fetchBackend(backendUrl, {
     cache: "no-store",
   });
 

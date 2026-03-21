@@ -1,4 +1,4 @@
-"""Aria agent — thin facade over the StateGraph implementation.
+"""AgenticStack agent — thin facade over the StateGraph implementation.
 
 When USE_LEGACY_AGENT is True in config.py, falls back to the old
 create_react_agent-based implementation in agent_legacy.py.

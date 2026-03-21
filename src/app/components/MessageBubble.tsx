@@ -9,7 +9,6 @@ import type { ChatMessage, TraceEvent } from "@/lib/api";
 import type { HitlRequestPayload, UseCaseCardsPayload } from "@/lib/types";
 import { extractStructuredBlocks } from "@/lib/parsers";
 import { HitlApproval } from "./HitlApproval";
-import { TracePanel } from "./TracePanel";
 
 // ---------------------------------------------------------------------------
 // Content parsing — detect ```sql block + following markdown table pairs
@@ -410,7 +409,7 @@ export function MessageBubble({
           >
             <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.18em] opacity-80">
               {isUser ? <User size={14} /> : null}
-              <span>{isUser ? "You" : "Aria"}</span>
+              <span>{isUser ? "You" : "AgenticStack"}</span>
             </div>
 
             <div
@@ -478,12 +477,6 @@ export function MessageBubble({
           ) : null,
         )}
 
-      {/* Trace Inspector — rendered below assistant messages */}
-      {!isUser && message.trace && message.trace.length > 0 && (
-        <div className="w-full pl-12">
-          <TracePanel events={message.trace} />
-        </div>
-      )}
     </article>
   );
 }

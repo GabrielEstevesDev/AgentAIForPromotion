@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aria",
+  title: "AgenticStack",
   description: "AI e-commerce assistant",
 };
 

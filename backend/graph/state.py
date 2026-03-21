@@ -1,4 +1,4 @@
-"""Graph state schema for the Aria agent."""
+"""Graph state schema for the AgenticStack agent."""
 
 import operator
 from typing import Annotated, Optional
@@ -8,8 +8,8 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
 
-class AriaState(TypedDict):
-    """State that flows through the Aria StateGraph.
+class AgenticStackState(TypedDict):
+    """State that flows through the AgenticStack StateGraph.
 
     Key fields:
     - messages: Chat history managed by LangGraph's add_messages reducer.

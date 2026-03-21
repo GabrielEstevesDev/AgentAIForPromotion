@@ -28,6 +28,11 @@ RAG_TOP_K = 5
 
 EXECUTOR_TIMEOUT_SEC = 30
 
+# Rate limiting
+ADMIN_SECRET_TOKEN = os.environ.get("ADMIN_SECRET_TOKEN", "password")
+RATE_LIMIT_GLOBAL = int(os.environ.get("RATE_LIMIT_GLOBAL", "100"))
+RATE_LIMIT_USER = int(os.environ.get("RATE_LIMIT_USER", "10"))
+
 # Set to True to fall back to the legacy create_react_agent implementation
 USE_LEGACY_AGENT = False
 

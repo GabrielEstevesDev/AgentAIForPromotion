@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "Frontend (Next.js)",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["node_modules/.bin/next", "dev"],
-      "port": 3000
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev"],
+      "port": 3000,
+      "autoPort": true
     },
     {
       "name": "Backend (FastAPI)",

@@ -29,11 +29,18 @@ export async function POST(request: Request) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
+    // Forward admin token if present
+    const backendHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    const adminToken = request.headers.get("x-admin-token");
+    if (adminToken) {
+      backendHeaders["x-admin-token"] = adminToken;
+    }
+
     backendResponse = await fetch(`${getBackendUrl()}/api/chat`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: backendHeaders,
       body: JSON.stringify({
         messages: body.messages ?? [],
         conversationId: body.conversationId,
@@ -57,6 +64,22 @@ export async function POST(request: Request) {
 
   if (!backendResponse.ok || !backendResponse.body) {
     const errorText = await backendResponse.text();
+
+    // For 429 rate-limit responses, parse and forward the structured detail
+    if (backendResponse.status === 429) {
+      try {
+        const parsed = JSON.parse(errorText);
+        // FastAPI wraps detail in { detail: "..." } — the detail itself is JSON
+        const detail = typeof parsed.detail === "string" ? JSON.parse(parsed.detail) : parsed;
+        return Response.json(detail, { status: 429 });
+      } catch {
+        return Response.json(
+          { error: "rate_limit", message: "Too many requests. Please try again later." },
+          { status: 429 },
+        );
+      }
+    }
+
     return Response.json(
       { error: errorText || "Backend chat request failed." },
       { status: backendResponse.status || 500 },

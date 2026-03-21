@@ -64,80 +64,17 @@ def get_document(filename: str) -> dict:
 
 @router.get("/{filename}/pdf")
 def get_document_pdf(filename: str) -> Response:
-    """Return a PDF rendering of a markdown document."""
-    filepath = _validate_filename(filename)
-    content = filepath.read_text(encoding="utf-8")
-    title = _title_from_filename(filename)
+    """Serve the pre-existing PDF file for a document, if available."""
+    _validate_filename(filename)
+    pdf_filename = Path(filename).stem + ".pdf"
+    pdf_path = DOCS_DIR / pdf_filename
 
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=20)
-    pdf.add_page()
+    if not pdf_path.is_file():
+        raise HTTPException(status_code=404, detail=f"PDF file '{pdf_filename}' not found")
 
-    # Title
-    pdf.set_font("Helvetica", "B", 20)
-    pdf.cell(0, 12, title, new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(6)
-
-    lines = content.split("\n")
-    in_code_block = False
-
-    for line in lines:
-        # Code block toggle
-        if line.strip().startswith("```"):
-            in_code_block = not in_code_block
-            if in_code_block:
-                pdf.ln(2)
-                pdf.set_font("Courier", "", 9)
-            else:
-                pdf.set_font("Helvetica", "", 11)
-                pdf.ln(2)
-            continue
-
-        if in_code_block:
-            pdf.set_font("Courier", "", 9)
-            pdf.set_x(15)
-            pdf.multi_cell(0, 5, line)
-            continue
-
-        stripped = line.strip()
-
-        # Headers
-        if stripped.startswith("### "):
-            pdf.ln(4)
-            pdf.set_font("Helvetica", "B", 13)
-            pdf.multi_cell(0, 7, stripped[4:])
-            pdf.ln(2)
-        elif stripped.startswith("## "):
-            pdf.ln(5)
-            pdf.set_font("Helvetica", "B", 15)
-            pdf.multi_cell(0, 8, stripped[3:])
-            pdf.ln(2)
-        elif stripped.startswith("# "):
-            pdf.ln(6)
-            pdf.set_font("Helvetica", "B", 18)
-            pdf.multi_cell(0, 10, stripped[2:])
-            pdf.ln(3)
-        # Bullet lists
-        elif stripped.startswith("- ") or stripped.startswith("* "):
-            pdf.set_font("Helvetica", "", 11)
-            pdf.set_x(15)
-            bullet_text = stripped[2:]
-            # Handle bold markers in text
-            bullet_text = bullet_text.replace("**", "")
-            pdf.multi_cell(0, 6, f"  \u2022  {bullet_text}")
-        # Empty line
-        elif stripped == "":
-            pdf.ln(3)
-        # Normal paragraph
-        else:
-            pdf.set_font("Helvetica", "", 11)
-            # Strip markdown bold/italic markers for plain text rendering
-            clean = stripped.replace("**", "").replace("*", "")
-            pdf.multi_cell(0, 6, clean)
-
-    pdf_bytes = pdf.output()
+    pdf_bytes = pdf_path.read_bytes()
     return Response(
-        content=bytes(pdf_bytes),
+        content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{Path(filename).stem}.pdf"'},
+        headers={"Content-Disposition": f'inline; filename="{pdf_filename}"'},
     )
