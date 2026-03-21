@@ -33,9 +33,6 @@ ADMIN_SECRET_TOKEN = os.environ.get("ADMIN_SECRET_TOKEN", "password")
 RATE_LIMIT_GLOBAL = int(os.environ.get("RATE_LIMIT_GLOBAL", "100"))
 RATE_LIMIT_USER = int(os.environ.get("RATE_LIMIT_USER", "10"))
 
-# Set to True to fall back to the legacy create_react_agent implementation
-USE_LEGACY_AGENT = False
-
 
 def require_keys(*keys: str) -> None:
     missing = [key for key in keys if not os.environ.get(key)]

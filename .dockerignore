@@ -1,4 +1,4 @@
-# Dependencies
+# Dependencies (rebuilt in container)
 node_modules/
 
 # Next.js build output
@@ -14,21 +14,17 @@ venv/
 .env.*
 .env.local
 
-# SQLite database & temporary files
-dev.db
+# SQLite temporary files (keep dev.db for seed data)
 dev.db-journal
 dev.db-wal
 dev.db-shm
 
-# ChromaDB vectorstore (auto-generated)
+# ChromaDB vectorstore (rebuilt in container)
 agent/chroma_db/
 chroma_db/
 
-# Chart PNGs (auto-generated)
+# Chart PNGs (auto-generated at runtime)
 backend/charts/*.png
-
-# Prisma generated client
-/generated/prisma
 
 # Python caches
 __pycache__/
@@ -47,6 +43,14 @@ __pycache__/
 backend/scripts/audit_results.json
 backend/scripts/conversations_with_traces.json
 
+# ── Excluded from production image ──
+backend/scripts/
+backend/tests/
+
+# Git
+.git/
+.gitignore
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -55,3 +59,10 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Prisma generated client
+/generated/prisma
+
+# Documentation (Claude Code config)
+.claude/
+CLAUDE.md
