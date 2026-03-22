@@ -9,7 +9,9 @@ type DocInfo = {
   size: number;
 };
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL
+  ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api`
+  : "/api";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -26,7 +28,7 @@ export default function DocumentsPage() {
     async function fetchDocs() {
       setLoadingDocs(true);
       try {
-        const res = await fetch(`${BACKEND_URL}/api/documents`);
+        const res = await fetch(`${API_BASE}/documents`);
         const data: DocInfo[] = await res.json();
         setDocuments(data);
         if (data.length > 0) {
@@ -43,7 +45,7 @@ export default function DocumentsPage() {
 
   const selectedInfo = documents.find((d) => d.filename === selectedDoc);
   const pdfUrl = selectedDoc
-    ? `${BACKEND_URL}/api/documents/${selectedDoc}/pdf`
+    ? `${API_BASE}/documents/${selectedDoc}/pdf`
     : null;
 
   return (

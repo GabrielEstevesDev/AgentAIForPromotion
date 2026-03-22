@@ -14,7 +14,9 @@ type TableData = {
   total: number;
 };
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL
+  ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api`
+  : "/api";
 
 export default function DatabasePage() {
   const [tables, setTables] = useState<TableInfo[]>([]);
@@ -29,7 +31,7 @@ export default function DatabasePage() {
     async function fetchTables() {
       setLoadingTables(true);
       try {
-        const res = await fetch(`${BACKEND_URL}/api/database/tables`);
+        const res = await fetch(`${API_BASE}/database/tables`);
         const data: TableInfo[] = await res.json();
         setTables(data);
         if (data.length > 0) {
@@ -49,7 +51,7 @@ export default function DatabasePage() {
       setLoadingData(true);
       try {
         const res = await fetch(
-          `${BACKEND_URL}/api/database/tables/${tableName}?limit=${limit}&offset=${newOffset}`
+          `${API_BASE}/database/tables/${tableName}?limit=${limit}&offset=${newOffset}`
         );
         const data: TableData = await res.json();
         if (newOffset === 0) {
