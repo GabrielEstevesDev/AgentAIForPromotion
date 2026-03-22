@@ -46,7 +46,13 @@ def ingest() -> None:
     embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
 
     if CHROMA_DIR.exists():
-        shutil.rmtree(CHROMA_DIR)
+        # Clear contents instead of removing the dir (may be a Docker mount point)
+        for item in CHROMA_DIR.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+
 
     documents: list[Document] = []
     for md_file in md_files:
