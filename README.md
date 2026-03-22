@@ -219,5 +219,5 @@ MIT
 ---
 
 <p align="center">
-  Built by <strong>Matthieu Restellini</strong> — AI & Full-Stack Engineering
+  Built by <strong>Gabriel ESTEVES</strong> — AI & Full-Stack Engineering
 </p>
