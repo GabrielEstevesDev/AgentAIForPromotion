@@ -6,6 +6,15 @@ from ..db import get_connection
 
 router = APIRouter(prefix="/api/database", tags=["database"])
 
+# Tables to hide from the public Database Explorer
+_HIDDEN_TABLES = {
+    "MessageTrace",
+    "ApiUsage",
+    "RateLimit",
+    "Conversation",
+    "Message",
+}
+
 
 @router.get("/tables")
 def list_tables() -> list[dict]:
@@ -16,7 +25,7 @@ def list_tables() -> list[dict]:
             "WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_%' "
             "ORDER BY name"
         )
-        tables = [row["name"] for row in cursor.fetchall()]
+        tables = [row["name"] for row in cursor.fetchall() if row["name"] not in _HIDDEN_TABLES]
 
         result = []
         for table_name in tables:
@@ -40,7 +49,7 @@ def get_table(
             (table_name,),
         ).fetchone()
 
-        if not exists:
+        if not exists or table_name in _HIDDEN_TABLES:
             raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
 
         # Get total count
