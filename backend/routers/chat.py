@@ -93,6 +93,14 @@ def _ensure_rate_limit_table() -> None:
 _ensure_rate_limit_table()
 
 
+def _get_real_ip(request: Request) -> str:
+    """Extract the real client IP, respecting reverse-proxy headers."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 def _check_rate_limit(request: Request) -> None:
     """Check global and per-user rate limits. Raises HTTPException(429) if exceeded."""
     # Admin bypass
@@ -100,7 +108,7 @@ def _check_rate_limit(request: Request) -> None:
     if ADMIN_SECRET_TOKEN and admin_token == ADMIN_SECRET_TOKEN:
         return
 
-    user_ip = request.client.host if request.client else "unknown"
+    user_ip = _get_real_ip(request)
 
     with get_connection() as conn:
         global_count = conn.execute(
@@ -131,7 +139,7 @@ def _check_rate_limit(request: Request) -> None:
 
 def _record_rate_limit(request: Request) -> None:
     """Insert a rate-limit row for the current request."""
-    user_ip = request.client.host if request.client else "unknown"
+    user_ip = _get_real_ip(request)
     try:
         with get_connection() as conn:
             conn.execute(

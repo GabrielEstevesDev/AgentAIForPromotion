@@ -1,0 +1,23 @@
+agenticstack.store {
+    # Backend API routes
+    handle /api/chat* {
+        reverse_proxy backend:8001
+    }
+    handle /api/database* {
+        reverse_proxy backend:8001
+    }
+    handle /api/documents* {
+        reverse_proxy backend:8001
+    }
+    handle /api/charts* {
+        reverse_proxy backend:8001
+    }
+    handle /api/conversations* {
+        reverse_proxy backend:8001
+    }
+
+    # Frontend (everything else)
+    handle {
+        reverse_proxy frontend:3000
+    }
+}

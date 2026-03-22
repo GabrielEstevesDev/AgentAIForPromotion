@@ -9,7 +9,7 @@ type DocInfo = {
   size: number;
 };
 
-const BACKEND_URL = "http://localhost:8001";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

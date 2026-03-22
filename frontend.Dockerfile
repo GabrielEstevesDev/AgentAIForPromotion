@@ -12,6 +12,9 @@ COPY . .
 # Allow the backend URL to be set at build time for Next.js
 ARG BACKEND_URL=http://backend:8001
 ENV BACKEND_URL=${BACKEND_URL}
+# Public URL used by client-side code (browser) to reach the backend
+ARG NEXT_PUBLIC_BACKEND_URL=https://agenticstack.store
+ENV NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
 # Generate Prisma client types (lib/prisma.ts is in tsconfig include)
 RUN npx prisma generate
 RUN npm run build

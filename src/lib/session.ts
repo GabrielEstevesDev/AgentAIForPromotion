@@ -9,7 +9,12 @@ export function getSessionId(): string {
   const key = "agenticstack_session_id";
   let id = sessionStorage.getItem(key);
   if (!id) {
-    id = crypto.randomUUID();
+    id = typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+        });
     sessionStorage.setItem(key, id);
   }
   return id;

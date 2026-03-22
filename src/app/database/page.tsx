@@ -14,7 +14,7 @@ type TableData = {
   total: number;
 };
 
-const BACKEND_URL = "http://localhost:8001";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8001";
 
 export default function DatabasePage() {
   const [tables, setTables] = useState<TableInfo[]>([]);
