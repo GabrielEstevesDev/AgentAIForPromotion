@@ -142,7 +142,7 @@ export function ChatArea({
     isLoading && messages.length > 0 && messages[messages.length - 1]?.role === "assistant";
 
   return (
-    <section className="relative flex flex-1 flex-col px-4 pb-36 pt-20 sm:px-8 md:pt-10">
+    <section className="relative flex flex-1 flex-col px-4 pb-44 pt-20 sm:px-8 md:pb-36 md:pt-10">
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6">
         <div className="border-b border-[var(--border)] pb-3">
           <h2 className="text-base font-semibold tracking-tight truncate">{title}</h2>
@@ -169,7 +169,7 @@ export function ChatArea({
                   >
                     <div className="mb-3 flex items-center justify-between text-[var(--muted)]">
                       <CategoryIcon size={16} className="text-[var(--accent)]" />
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {action.tool_badges.map((badge) => (
                           <span
                             key={badge}

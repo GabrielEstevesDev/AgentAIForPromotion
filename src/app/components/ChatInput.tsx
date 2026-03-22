@@ -55,7 +55,7 @@ export function ChatInput({
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 flex justify-center px-4 pb-6">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 flex justify-center px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <div className="pointer-events-auto w-full max-w-3xl rounded-[1.75rem] border border-[var(--border)] bg-[var(--card-strong)] p-3 shadow-[0_20px_60px_-30px_rgba(0,0,0,0.45)] backdrop-blur">
         <div className="flex items-end gap-3">
           {onOpenDrawer && (
