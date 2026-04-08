@@ -1,8 +1,5 @@
 agenticstack.store {
-    # Backend API routes
-    handle /api/chat* {
-        reverse_proxy backend:8001
-    }
+    # Backend API routes (chat goes through Next.js for SSE→DataStream conversion)
     handle /api/database* {
         reverse_proxy backend:8001
     }
