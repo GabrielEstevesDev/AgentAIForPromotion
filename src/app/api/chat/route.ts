@@ -98,9 +98,9 @@ export async function POST(request: Request) {
           break;
         }
 
-        buffer += normalizeSseChunk(decoder.decode(value, { stream: true }));
-        const events = buffer.split("\n\n");
-        buffer = events.pop() ?? "";
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        const { events, remaining } = extractSseEvents(buffer);
+        buffer = remaining;
 
         for (const eventChunk of events) {
           const parsed = parseSseEvent(eventChunk);
@@ -118,10 +118,10 @@ export async function POST(request: Request) {
             // the reader loop alive — no need to write anything to the data stream.
           }
 
-          // Phase 2.4: Forward perf events as data stream annotations for dev visibility
+          // Forward perf events as data stream annotations for dev visibility
           if (parsed.event === "perf") {
             const payload = safeParse(parsed.data);
-            if (payload) {
+            if (payload && typeof payload === "object") {
               dataStream.writeMessageAnnotation({
                 type: "perf",
                 ...payload,
@@ -131,8 +131,8 @@ export async function POST(request: Request) {
 
           // Forward trace events as data stream annotations
           if (parsed.event === "trace") {
-            const tracePayload = safeParse(parsed.data);
-            if (Array.isArray(tracePayload)) {
+            const tracePayload = safeParseArray(parsed.data);
+            if (tracePayload) {
               dataStream.writeMessageAnnotation({
                 type: "trace",
                 events: tracePayload as unknown as string,
@@ -148,16 +148,25 @@ export async function POST(request: Request) {
           }
 
           if (parsed.event === "done") {
+            // AI SDK v4 requires finish_step (e) before finish_message (d)
+            dataStream.write(
+              formatDataPart("e", {
+                finishReason: "stop",
+                usage: { promptTokens: 0, completionTokens: 0 },
+                isContinued: false,
+              }),
+            );
             dataStream.write(
               formatDataPart("d", {
                 finishReason: "stop",
+                usage: { promptTokens: 0, completionTokens: 0 },
               }),
             );
           }
         }
       }
 
-      buffer += normalizeSseChunk(decoder.decode());
+      buffer += decoder.decode().replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
       if (buffer.trim()) {
         const parsed = parseSseEvent(buffer);
@@ -170,8 +179,16 @@ export async function POST(request: Request) {
 
         if (parsed?.event === "done") {
           dataStream.write(
+            formatDataPart("e", {
+              finishReason: "stop",
+              usage: { promptTokens: 0, completionTokens: 0 },
+              isContinued: false,
+            }),
+          );
+          dataStream.write(
             formatDataPart("d", {
               finishReason: "stop",
+              usage: { promptTokens: 0, completionTokens: 0 },
             }),
           );
         }
@@ -187,8 +204,33 @@ export async function POST(request: Request) {
   });
 }
 
-function normalizeSseChunk(value: string) {
-  return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+/**
+ * Robust SSE event extractor. Splits a buffer into complete SSE events using
+ * blank-line boundaries (line-by-line state machine). Returns complete events
+ * and any partial trailing event still in the buffer.
+ *
+ * This replaces the fragile `/\n{2,}/` split which can produce fragments
+ * containing raw `event:` or `data:` field names that then leak into the
+ * Vercel AI SDK data stream parser when chunks arrive in unexpected sizes.
+ */
+function extractSseEvents(buffer: string): { events: string[]; remaining: string } {
+  const events: string[] = [];
+  const lines = buffer.split("\n");
+  let current = "";
+
+  for (const line of lines) {
+    if (line === "") {
+      // Blank line = SSE event boundary
+      if (current.trim()) {
+        events.push(current);
+        current = "";
+      }
+    } else {
+      current = current ? current + "\n" + line : line;
+    }
+  }
+
+  return { events, remaining: current };
 }
 
 function parseSseEvent(chunk: string) {
@@ -216,15 +258,27 @@ function parseSseEvent(chunk: string) {
   };
 }
 
-function safeParse(value: string) {
+function safeParse(value: string): Record<string, unknown> | null {
   try {
-    return JSON.parse(value) as Record<string, unknown>;
+    const parsed = JSON.parse(value);
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
 }
 
-function formatDataPart<TPrefix extends "0" | "3" | "d">(
+function safeParseArray(value: string): unknown[] | null {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatDataPart<TPrefix extends "0" | "3" | "d" | "e">(
   prefix: TPrefix,
   value: unknown,
 ): `${TPrefix}:${string}\n` {
