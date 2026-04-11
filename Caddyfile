@@ -3,45 +3,40 @@ landing.agenticstack.store {
 }
 
 agenticstack.store {
-    # Backend API routes — strip client-sent trusted headers, inject Caddy-controlled ones
+    # Backend API routes.
+    # We use "+X-Internal-Key" (add/append mode) so Caddy does NOT add the
+    # header to its internal delete list before setting it.
+    # X-Forwarded-For is removed so clients cannot spoof the rate-limit IP.
     handle /api/database* {
         reverse_proxy backend:8001 {
             header_up -X-Forwarded-For
-            header_up -X-Real-IP
-            header_up -X-Internal-Key
-            header_up X-Real-IP {remote_host}
-            header_up X-Internal-Key {$BACKEND_INTERNAL_KEY}
+            header_up +X-Real-IP {remote_host}
+            header_up +X-Internal-Key {$BACKEND_INTERNAL_KEY}
         }
     }
     handle /api/documents* {
         reverse_proxy backend:8001 {
             header_up -X-Forwarded-For
-            header_up -X-Real-IP
-            header_up -X-Internal-Key
-            header_up X-Real-IP {remote_host}
-            header_up X-Internal-Key {$BACKEND_INTERNAL_KEY}
+            header_up +X-Real-IP {remote_host}
+            header_up +X-Internal-Key {$BACKEND_INTERNAL_KEY}
         }
     }
     handle /api/charts* {
         reverse_proxy backend:8001 {
             header_up -X-Forwarded-For
-            header_up -X-Real-IP
-            header_up -X-Internal-Key
-            header_up X-Real-IP {remote_host}
-            header_up X-Internal-Key {$BACKEND_INTERNAL_KEY}
+            header_up +X-Real-IP {remote_host}
+            header_up +X-Internal-Key {$BACKEND_INTERNAL_KEY}
         }
     }
     handle /api/conversations* {
         reverse_proxy backend:8001 {
             header_up -X-Forwarded-For
-            header_up -X-Real-IP
-            header_up -X-Internal-Key
-            header_up X-Real-IP {remote_host}
-            header_up X-Internal-Key {$BACKEND_INTERNAL_KEY}
+            header_up +X-Real-IP {remote_host}
+            header_up +X-Internal-Key {$BACKEND_INTERNAL_KEY}
         }
     }
 
-    # Frontend (everything else, including /api/chat which Next.js proxies to backend)
+    # Frontend (everything else, including /api/chat proxied by Next.js)
     handle {
         reverse_proxy frontend:3000
     }

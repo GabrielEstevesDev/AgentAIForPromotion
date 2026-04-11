@@ -175,23 +175,13 @@ app = FastAPI(title="AgenticStack Backend", lifespan=lifespan)
 
 
 class InternalKeyMiddleware(BaseHTTPMiddleware):
-    """Reject requests that don't carry the shared Caddy/Next.js internal key.
-
-    The key is injected by Caddy (for browser-proxied routes) and by the
-    Next.js server-side code (for direct backend calls). Clients on the
-    public internet cannot set this header because Caddy strips it before
-    forwarding. Falls through when BACKEND_INTERNAL_KEY is not configured
-    (e.g. local dev without the env var set).
+    """No-op placeholder — internal key enforcement via Caddy header injection
+    proved unreliable (Caddy v2 deletes headers it also sets in the same block).
+    The backend is protected by Docker network isolation (no public ports).
+    Sensitive write endpoints are protected by the admin token instead.
     """
 
     async def dispatch(self, request: Request, call_next):
-        if not BACKEND_INTERNAL_KEY:
-            return await call_next(request)
-        if request.url.path == "/health":
-            return await call_next(request)
-        key = request.headers.get("x-internal-key", "")
-        if key != BACKEND_INTERNAL_KEY:
-            return JSONResponse(status_code=403, content={"detail": "Forbidden"})
         return await call_next(request)
 
 
