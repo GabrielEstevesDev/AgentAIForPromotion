@@ -1,12 +1,18 @@
 import { getBackendUrl } from "@/lib/backend";
 import type { ChatMessage, ConversationSummary, ConversationTrace } from "@/lib/api";
 
+function getInternalKeyHeader(): Record<string, string> {
+  const key = process.env.BACKEND_INTERNAL_KEY;
+  return key ? { "X-Internal-Key": key } : {};
+}
+
 async function fetchBackend(path: string, init?: RequestInit) {
   const response = await fetch(`${getBackendUrl()}${path}`, {
     ...init,
     cache: "no-store",
     headers: {
       "Content-Type": "application/json",
+      ...getInternalKeyHeader(),
       ...(init?.headers ?? {}),
     },
   });

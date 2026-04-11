@@ -2,10 +2,20 @@ import sqlite3
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from ..config import ADMIN_SECRET_TOKEN
 from ..db import get_connection
+
+
+def _require_admin(request: Request) -> None:
+    """Dependency: reject the request unless a valid admin token is supplied."""
+    if not ADMIN_SECRET_TOKEN:
+        return
+    token = request.headers.get("x-admin-token", "")
+    if token != ADMIN_SECRET_TOKEN:
+        raise HTTPException(status_code=403, detail="Admin token required.")
 
 router = APIRouter(prefix="/api/purchase-orders", tags=["purchase-orders"])
 
@@ -152,7 +162,7 @@ def list_suppliers() -> list[dict]:
 
 
 @router.post("")
-def create_purchase_order(payload: PurchaseOrderCreate) -> dict:
+def create_purchase_order(payload: PurchaseOrderCreate, _: None = Depends(_require_admin)) -> dict:
     with get_connection() as conn:
         # Validate supplier
         supplier = conn.execute(
@@ -208,7 +218,7 @@ def create_purchase_order(payload: PurchaseOrderCreate) -> dict:
 
 
 @router.post("/{po_id}/approve")
-def approve_purchase_order(po_id: str, auto_receive: bool = False) -> dict:
+def approve_purchase_order(po_id: str, auto_receive: bool = False, _: None = Depends(_require_admin)) -> dict:
     with get_connection() as conn:
         po = conn.execute(
             "SELECT id, status FROM PurchaseOrder WHERE id = ?", (po_id,)
@@ -240,7 +250,7 @@ def approve_purchase_order(po_id: str, auto_receive: bool = False) -> dict:
 
 
 @router.post("/{po_id}/receive")
-def receive_purchase_order(po_id: str) -> dict:
+def receive_purchase_order(po_id: str, _: None = Depends(_require_admin)) -> dict:
     with get_connection() as conn:
         po = conn.execute(
             "SELECT id, status FROM PurchaseOrder WHERE id = ?", (po_id,)

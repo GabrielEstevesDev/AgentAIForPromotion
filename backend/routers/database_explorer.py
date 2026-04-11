@@ -6,8 +6,10 @@ from ..db import get_connection
 
 router = APIRouter(prefix="/api/database", tags=["database"])
 
-# Tables to hide from the public Database Explorer
+# Tables to hide from the public Database Explorer.
+# Customer is hidden because it contains PII (name, email, phone).
 _HIDDEN_TABLES = {
+    "Customer",
     "MessageTrace",
     "ApiUsage",
     "RateLimit",

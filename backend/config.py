@@ -36,6 +36,9 @@ ADMIN_SECRET_TOKEN = os.environ.get("ADMIN_SECRET_TOKEN", "")
 RATE_LIMIT_GLOBAL = int(os.environ.get("RATE_LIMIT_GLOBAL", "100"))
 RATE_LIMIT_USER = int(os.environ.get("RATE_LIMIT_USER", "10"))
 
+# Internal API key — shared between Caddy and Next.js; backend rejects requests without it
+BACKEND_INTERNAL_KEY = os.environ.get("BACKEND_INTERNAL_KEY", "")
+
 
 def require_keys(*keys: str) -> None:
     missing = [key for key in keys if not os.environ.get(key)]

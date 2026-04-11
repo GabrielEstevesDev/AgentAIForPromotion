@@ -1,20 +1,52 @@
+landing.agenticstack.store {
+    reverse_proxy agentic-landing:3000
+}
+
 agenticstack.store {
-    # Backend API routes (chat goes through Next.js for SSE→DataStream conversion)
+    # Backend API routes — strip client-sent trusted headers, inject Caddy-controlled ones
     handle /api/database* {
-        reverse_proxy backend:8001
+        reverse_proxy backend:8001 {
+            header_up -X-Forwarded-For
+            header_up -X-Real-IP
+            header_up -X-Internal-Key
+            header_up X-Real-IP {remote_host}
+            header_up X-Internal-Key {$BACKEND_INTERNAL_KEY}
+        }
     }
     handle /api/documents* {
-        reverse_proxy backend:8001
+        reverse_proxy backend:8001 {
+            header_up -X-Forwarded-For
+            header_up -X-Real-IP
+            header_up -X-Internal-Key
+            header_up X-Real-IP {remote_host}
+            header_up X-Internal-Key {$BACKEND_INTERNAL_KEY}
+        }
     }
     handle /api/charts* {
-        reverse_proxy backend:8001
+        reverse_proxy backend:8001 {
+            header_up -X-Forwarded-For
+            header_up -X-Real-IP
+            header_up -X-Internal-Key
+            header_up X-Real-IP {remote_host}
+            header_up X-Internal-Key {$BACKEND_INTERNAL_KEY}
+        }
     }
     handle /api/conversations* {
-        reverse_proxy backend:8001
+        reverse_proxy backend:8001 {
+            header_up -X-Forwarded-For
+            header_up -X-Real-IP
+            header_up -X-Internal-Key
+            header_up X-Real-IP {remote_host}
+            header_up X-Internal-Key {$BACKEND_INTERNAL_KEY}
+        }
     }
 
-    # Frontend (everything else)
+    # Frontend (everything else, including /api/chat which Next.js proxies to backend)
     handle {
         reverse_proxy frontend:3000
     }
+}
+
+demo-leadagent.agenticstack.store {
+    reverse_proxy lead-agent-demo:8001
 }

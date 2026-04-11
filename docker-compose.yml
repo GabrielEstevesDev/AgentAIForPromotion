@@ -22,6 +22,8 @@ services:
     environment:
       - BACKEND_URL=http://backend:8001
       - NEXT_PUBLIC_BACKEND_URL=https://agenticstack.store
+    env_file:
+      - .env
     depends_on:
       - backend
 
@@ -35,6 +37,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
+    env_file:
+      - .env
     depends_on:
       - frontend
       - backend

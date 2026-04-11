@@ -29,10 +29,18 @@ export async function POST(request: Request) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
-    // Forward admin token if present
+    // Build headers for the backend request
     const backendHeaders: Record<string, string> = {
       "Content-Type": "application/json",
     };
+
+    // Attach the internal key so the backend accepts the request
+    const internalKey = process.env.BACKEND_INTERNAL_KEY;
+    if (internalKey) {
+      backendHeaders["x-internal-key"] = internalKey;
+    }
+
+    // Forward admin token if present (rate-limit bypass)
     const adminToken = request.headers.get("x-admin-token");
     if (adminToken) {
       backendHeaders["x-admin-token"] = adminToken;

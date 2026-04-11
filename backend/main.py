@@ -8,9 +8,11 @@ from datetime import datetime, timedelta, timezone
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .agent import build_agent
+from .config import BACKEND_INTERNAL_KEY
 from .db import get_connection
 from .graph.stream import cleanup_thread_locks
 from .routers import chat, charts, conversations, database_explorer, documents, purchase_orders
@@ -172,6 +174,27 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AgenticStack Backend", lifespan=lifespan)
 
 
+class InternalKeyMiddleware(BaseHTTPMiddleware):
+    """Reject requests that don't carry the shared Caddy/Next.js internal key.
+
+    The key is injected by Caddy (for browser-proxied routes) and by the
+    Next.js server-side code (for direct backend calls). Clients on the
+    public internet cannot set this header because Caddy strips it before
+    forwarding. Falls through when BACKEND_INTERNAL_KEY is not configured
+    (e.g. local dev without the env var set).
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if not BACKEND_INTERNAL_KEY:
+            return await call_next(request)
+        if request.url.path == "/health":
+            return await call_next(request)
+        key = request.headers.get("x-internal-key", "")
+        if key != BACKEND_INTERNAL_KEY:
+            return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+        return await call_next(request)
+
+
 # Phase 2.2: Request ID middleware for structured logging
 class RequestIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -184,9 +207,14 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(RequestIdMiddleware)
+app.add_middleware(InternalKeyMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://agenticstack.store",
+        "https://www.agenticstack.store",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

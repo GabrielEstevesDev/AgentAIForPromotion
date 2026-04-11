@@ -94,10 +94,16 @@ _ensure_rate_limit_table()
 
 
 def _get_real_ip(request: Request) -> str:
-    """Extract the real client IP, respecting reverse-proxy headers."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """Extract the real client IP from the X-Real-IP header set by Caddy.
+
+    Caddy strips any client-sent X-Real-IP and injects the true remote address,
+    so this header is not spoofable. X-Forwarded-For is intentionally ignored
+    because clients can pre-set it and trick naive parsers.
+    """
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    # Fallback for local dev (no Caddy in front)
     return request.client.host if request.client else "unknown"
 
 
