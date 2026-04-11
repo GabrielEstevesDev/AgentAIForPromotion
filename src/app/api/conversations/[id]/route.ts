@@ -47,9 +47,17 @@ async function proxyJson(response: Response) {
   });
 }
 
+function internalKeyHeader(): Record<string, string> {
+  const key = process.env.BACKEND_INTERNAL_KEY;
+  return key ? { "X-Internal-Key": key } : {};
+}
+
 async function fetchBackend(input: string, init?: RequestInit) {
   try {
-    return await fetch(input, init);
+    return await fetch(input, {
+      ...init,
+      headers: { ...internalKeyHeader(), ...(init?.headers ?? {}) },
+    });
   } catch (error) {
     const detail =
       error instanceof Error ? error.message : "Unable to reach the backend service.";

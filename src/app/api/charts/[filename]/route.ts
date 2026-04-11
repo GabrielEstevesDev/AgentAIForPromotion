@@ -14,8 +14,10 @@ export async function GET(
   }
 
   try {
+    const internalKey = process.env.BACKEND_INTERNAL_KEY;
     const backendRes = await fetch(`${getBackendUrl()}/api/charts/${filename}`, {
       cache: "no-store",
+      headers: internalKey ? { "X-Internal-Key": internalKey } : {},
     });
 
     if (!backendRes.ok) {
